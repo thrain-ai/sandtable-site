@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sandtable — Agincourt, 1415</title>
+<meta name="description" content="The Battle of Agincourt re-enacted from above — Henry V's archers against the flower of France, in the mud between two woods. One mote for every five men.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="SANDTABLE">
+<meta property="og:title" content="Sandtable — Agincourt, 1415">
+<meta property="og:description" content="The Battle of Agincourt re-enacted from above — Henry V's archers against the flower of France, in the mud between two woods. One mote for every five men.">
+<meta property="og:url" content="https://sandtable.thrain.ai/agincourt/">
+<meta property="og:image" content="https://sandtable.thrain.ai/agincourt/og.jpg">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://sandtable.thrain.ai/agincourt/og.jpg">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
+<link rel="stylesheet" href="../style.css?v=5591be0">
+</head>
+<body>
+
+<canvas id="field" aria-label="Animated top-down re-enactment of the Battle of Agincourt"></canvas>
+
+<div class="hud" id="masthead">
+  <a class="crumb" href="../">&larr; Sandtable</a>
+  <h1 class="sr-only">Agincourt &mdash; 25 October 1415, Artois, France</h1>
+</div>
+
+<div class="hud" id="scorestack">
+  <div id="muster">
+    <div class="mhead">Fallen</div>
+    <div class="mrow a"><i></i><span>England</span><b id="fallenA">0</b><em>/ 6,000</em></div>
+    <div class="mrow b"><i></i><span>France</span><b id="fallenB">0</b><em>/ 24,000</em></div>
+  </div>
+  <div id="aftermath">
+    <div class="ahead"><span>Summary</span><button id="afttoggle" aria-label="Minimize summary">&minus;</button></div>
+    <table class="tally">
+      <tr><th></th><th>Dead</th><th>Prisoners</th></tr>
+      <tr class="a"><td>England</td><td><b>~112</b></td><td>&mdash;</td></tr>
+      <tr class="b"><td>France</td><td><b>~6,000</b></td><td>~1,500</td></tr>
+    </table>
+    <div class="sources">Sources &middot; <a href="https://www.medievalsoldier.org" target="_blank" rel="noopener">medievalsoldier.org</a> &middot; <a href="https://www.britannica.com/event/Battle-of-Agincourt" target="_blank" rel="noopener">Britannica</a></div>
+    <button id="replaybtn">&#8635; Replay</button>
+  </div>
+</div>
+
+<div class="hud" id="narration">
+  <p id="phasebody"></p>
+  <div class="cite" id="phasecite"></div>
+</div>
+
+<div class="hud" id="compass">
+  <div>N &uarr;</div>
+  <div id="scalerow">
+    <button id="zout" aria-label="Zoom out">&minus;</button>
+    <div id="kmbar">1 km</div>
+    <button id="zin" aria-label="Zoom in">+</button>
+  </div>
+</div>
+
+<div class="hud" id="console">
+  <button id="rwbtn" aria-label="Rewind">&#171;</button>
+  <button id="playbtn" aria-label="Play or pause">&#9654;</button>
+  <button id="ffbtn" aria-label="Fast forward">&#187;</button>
+  <div id="timeline" role="slider" aria-label="Battle timeline" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0">
+    <div class="rail"></div>
+    <div class="fill" id="tlfill"></div>
+  </div>
+  <div id="clock">0:00</div>
+  <button id="labelbtn" aria-label="Toggle unit labels" title="Labels (L)"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M1.5 12.5 L6 8"/><rect x="6" y="1.5" width="6.5" height="6.5"/></svg></button>
+</div>
+
+<script>
+window.BATTLE = {
+  field: { w: 1600, h: 900, kmUnits: 800 },   // ~2 km of Artois farmland
+  scale: 5,
+  tEnd: 100,
+  hook: '6,000 French fell against 112 English.',
+  sides: {
+    a: { name: 'ENGLAND', total: 6000, pal: ['#256abf', '#3987e5', '#5598e7', '#86b6ef', '#0aa2a9'] },
+    b: { name: 'FRANCE', total: 24000, pal: ['#a03d18', '#C14E24', '#d96a3a', '#e8875a', '#f0b06a'] },
+  },
+  terrain: {
+    base: 0.05, rise: 0.10, noise: 0.09, floor: 0.02,
+    blobs: [
+      { x: 120, y: 300, r: 420, h: 0.22 },
+      { x: 1480, y: 350, r: 420, h: 0.24 },
+      { x: 800, y: 30, r: 500, h: 0.16 },    // the French stood on slightly higher ground
+      { x: 820, y: 880, r: 380, h: 0.12 },
+    ],
+    river: null,
+    /* the funnel: two woods pinching the plowed field toward the English */
+    woods: [
+      { x: 170, y: 120, r: 240 }, { x: 210, y: 380, r: 230 },
+      { x: 290, y: 640, r: 240 }, { x: 390, y: 870, r: 230 },
+      { x: 1430, y: 120, r: 240 }, { x: 1390, y: 380, r: 230 },
+      { x: 1310, y: 640, r: 240 }, { x: 1210, y: 870, r: 230 },
+    ],
+    names: [
+      { t: 'AZINCOURT', x: 150, y: 60 },
+      { t: 'TRAMECOURT', x: 1440, y: 60 },
+      { t: 'MAISONCELLE', x: 810, y: 880 },
+    ],
+    marks: [],
+    title: { name: 'Agincourt', sub: '25 October 1415', x: 800, y: 790 },
+  },
+  /* England south facing north (270); France north facing south (90).
+     From Gesta Henrici Quinti, Wavrin, Monstrelet; numbers per the
+     traditional account (~6,000 v ~24,000), debate noted in aftermath. */
+  units: [
+    { id: 'ema', side: 'a', n: 200, kind: 'inf', label: 'HENRY V · MEN-AT-ARMS',
+      kf: [[0,800,700,270,340,28,0,10],[14,800,575,270,330,28,0,8],[40,800,572,270,330,30,0,8],
+           [56,800,578,270,320,34,0,8],[72,800,575,270,330,34,0,8],[100,800,570,270,330,32,0,8]],
+      kill: [[48,0],[72,0.045],[100,0.05]],
+      melee: [[48,100,6]] },
+    { id: 'eaw', side: 'a', n: 500, kind: 'inf', label: 'ARCHERS',
+      kf: [[0,590,690,280,220,55,0,12],[14,585,560,280,220,55,0,10],[26,585,555,280,220,60,0,12],
+           [42,590,560,280,220,60,0,10],[56,660,540,340,190,80,0,12],[72,700,530,350,180,90,0,12],
+           [100,690,540,350,180,90,0,10]],
+      kill: [[26,0],[38,0.008],[72,0.012],[100,0.013]],
+      melee: [[26,36,8],[56,100,6]] },
+    { id: 'eae', side: 'a', n: 500, kind: 'inf', label: 'ARCHERS',
+      kf: [[0,1010,690,260,220,55,0,12],[14,1015,560,260,220,55,0,10],[26,1015,555,260,220,60,0,12],
+           [42,1010,560,260,220,60,0,10],[56,940,540,200,190,80,0,12],[72,900,530,190,180,90,0,12],
+           [100,910,540,190,180,90,0,10]],
+      kill: [[26,0],[38,0.008],[72,0.012],[100,0.013]],
+      melee: [[26,36,8],[56,100,6]] },
+    { id: 'fcw', side: 'b', n: 120, kind: 'cav', label: 'CAVALRY',
+      kf: [[0,620,240,90,140,80,0,14],[14,620,245,90,140,80,0,12],[26,610,410,90,130,90,0,14],
+           [32,615,505,90,120,90,0,16],[38,640,330,70,140,90,0,22],[46,660,180,60,160,80,0,26],
+           [56,660,60,60,170,80,0,28],[64,660,-160,60,170,80,0,28]],
+      kill: [[26,0],[32,0.12],[38,0.3],[46,0.35]],
+      melee: [[26,38,12]] },
+    { id: 'fce', side: 'b', n: 120, kind: 'cav', label: 'CAVALRY',
+      kf: [[0,980,240,90,140,80,0,14],[14,980,245,90,140,80,0,12],[26,990,410,90,130,90,0,14],
+           [32,985,505,90,120,90,0,16],[38,960,330,110,140,90,0,22],[46,940,180,120,160,80,0,26],
+           [56,940,60,120,170,80,0,28],[64,940,-160,120,170,80,0,28]],
+      kill: [[26,0],[32,0.12],[38,0.3],[46,0.35]],
+      melee: [[26,38,12]] },
+    { id: 'fb1', side: 'b', n: 1600, kind: 'inf', label: 'D’ALBRET · FIRST BATTLE',
+      kf: [[0,800,260,90,820,110,0,14],[14,800,270,90,800,110,0,10],[26,800,330,90,760,115,0,10],
+           [40,800,440,90,640,125,0,10],[50,800,515,90,540,135,0,10],[56,800,530,90,490,140,0,10],
+           [72,795,525,90,430,140,0,10],[100,795,520,90,380,130,0,10]],
+      kill: [[30,0],[40,0.06],[50,0.12],[56,0.2],[72,0.36],[86,0.43],[100,0.45]],
+      melee: [[48,100,7]] },
+    { id: 'fb2', side: 'b', n: 1400, kind: 'inf', label: 'SECOND BATTLE',
+      kf: [[0,800,120,90,780,100,0,14],[26,800,150,90,760,100,0,10],[40,800,240,90,700,105,0,10],
+           [56,800,380,90,560,115,0,10],[64,800,450,90,500,125,0,10],[72,800,470,90,460,125,0,10],
+           [100,800,460,90,420,120,0,10]],
+      kill: [[56,0],[64,0.08],[80,0.2],[100,0.25]],
+      melee: [[58,100,6]] },
+    { id: 'fb3', side: 'b', n: 1560, kind: 'cav', label: 'THIRD BATTLE · MOUNTED',
+      kf: [[0,800,40,90,900,70,0,16],[40,800,60,90,880,70,0,14],[72,800,90,90,860,70,0,16],
+           [80,800,20,90,880,70,0,20],[90,800,-160,90,900,70,0,24]],
+      kill: [[60,0],[80,0.02]],
+      melee: [] },
+  ],
+  /* each tracer stands for ~10 real arrows in the air */
+  volleys: [
+    { from: 'eaw', to: 'fb1', t0: 20, t1: 26, rate: 10, kind: 'arrow' },
+    { from: 'eae', to: 'fb1', t0: 20, t1: 26, rate: 10, kind: 'arrow' },
+    { from: 'eaw', to: 'fcw', t0: 26, t1: 36, rate: 50, kind: 'arrow' },
+    { from: 'eae', to: 'fce', t0: 26, t1: 36, rate: 50, kind: 'arrow' },
+    { from: 'eaw', to: 'fb1', t0: 30, t1: 56, rate: 40, kind: 'arrow' },
+    { from: 'eae', to: 'fb1', t0: 30, t1: 56, rate: 40, kind: 'arrow' },
+    { from: 'fb1', to: 'ema', t0: 40, t1: 50, rate: 5, kind: 'arrow' },
+  ],
+  phases: [
+    { t: 0, body: 'This is the Battle of Agincourt in northern France on 25 October 1415, where Henry V’s exhausted army of about 6,000 stands across a muddy plowed field between 2 woods. Facing him is a French army perhaps 4 times his size, after a whole night of rain.',
+      cite: '— Gesta Henrici Quinti · Curry, Agincourt (2005)' },
+    { t: 14, body: 'The French will not attack, so Henry gambles everything and walks his whole line forward to within longbow range. His archers hammer sharpened stakes into the mud in front of them, and then the arrows begin to fall until the French can no longer stand and wait.',
+      cite: '— Gesta Henrici Quinti' },
+    { t: 26, body: 'The French cavalry charges the archer wedges and discovers what a longbow can do, as 5,000 bows shooting a dozen arrows a minute bring down horses on the soft plowed ground. The survivors stampede back through the front of their own advancing infantry.',
+      cite: '— Jean de Wavrin (eyewitness)' },
+    { t: 40, body: 'Now d’Albret leads 8,000 French knights on foot 300 yards through knee deep mud with heads bowed against the arrow storm, squeezed ever tighter by the woods on either side. When they finally reach Henry’s line they can barely lift their weapons.',
+      cite: '— Monstrelet · Gesta Henrici Quinti' },
+    { t: 56, body: 'The crush itself does the killing, as the archers drop their bows and attack the flanks with mallets and daggers, and a man who stumbles in the mud under that weight of armour does not get up. The dead and the living pile together in heaps taller than a man.',
+      cite: '— Gesta Henrici Quinti' },
+    { t: 72, body: 'On the ridge the third French line still wavers, and Henry fears a fresh assault across a field already full of prisoners. So he gives the order that has been argued over for 600 years, and the captives are killed where they stand until the threat dissolves.',
+      cite: '— Gesta Henrici Quinti · Monstrelet' },
+    { t: 86, body: 'It has taken about 3 hours. The commander of France, 3 dukes and some 90 great lords lie dead in the mud with around 6,000 of their men, against perhaps 112 English dead, and the finest knights in France have been beaten by mud, geometry and the bow.',
+      cite: '— Curry · Barker, Agincourt (2005)' },
+  ],
+};
+</script>
+<script src="../engine.js?v=5591be0"></script>
+</body>
+</html>

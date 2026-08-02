@@ -1,0 +1,34 @@
+# CANONICAL copy of sandtable-site's Pages workflow. sandtable-site publishes
+# via GitHub Pages workflow builds (build_type=workflow) — this file IS the
+# publishing mechanism there.
+#
+# Every snapshot force-pushed to sandtable-site MUST include this file at
+# .github/workflows/deploy.yml, or Pages deploys stop and the live site
+# silently freezes. Both publish paths (.github/workflows/deploy.yml here,
+# tools/deploy-site.sh) copy it into the snapshot — edit it only here.
+name: deploy-pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: "."
+      - id: deployment
+        uses: actions/deploy-pages@v4

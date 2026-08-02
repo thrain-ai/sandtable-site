@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sandtable — Convoy ONS 5, 1943</title>
+<meta name="description" content="The battle for Convoy ONS 5 re-enacted from above — forty U-boats against forty-two merchantmen in the Black Pit, the three days that turned the Battle of the Atlantic.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="SANDTABLE">
+<meta property="og:title" content="Sandtable — Convoy ONS 5, 1943">
+<meta property="og:description" content="The battle for Convoy ONS 5 re-enacted from above — forty U-boats against forty-two merchantmen in the Black Pit, the three days that turned the Battle of the Atlantic.">
+<meta property="og:url" content="https://sandtable.thrain.ai/ons5/">
+<meta property="og:image" content="https://sandtable.thrain.ai/ons5/og.jpg">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://sandtable.thrain.ai/ons5/og.jpg">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
+<link rel="stylesheet" href="../style.css?v=5591be0">
+</head>
+<body>
+
+<canvas id="field" aria-label="Animated top-down re-enactment of the battle for Convoy ONS 5"></canvas>
+
+<div class="hud" id="masthead">
+  <a class="crumb" href="../">&larr; Sandtable</a>
+  <h1 class="sr-only">Convoy ONS 5 &mdash; 4&ndash;6 May 1943, the North Atlantic air gap</h1>
+</div>
+
+<div class="hud" id="scorestack">
+  <div id="muster">
+    <div class="mhead">Ships lost</div>
+    <div class="mrow a"><i></i><span>Allies</span><b id="fallenA">0</b><em>/ 42</em></div>
+    <div class="mrow b"><i></i><span>Axis</span><b id="fallenB">0</b><em>/ 30</em></div>
+  </div>
+  <div id="aftermath">
+    <div class="ahead"><span>Summary</span><button id="afttoggle" aria-label="Minimize summary">&minus;</button></div>
+    <table class="tally">
+      <tr><th></th><th>Ships lost</th><th>Damaged</th></tr>
+      <tr class="a"><td>Allies</td><td><b>13</b></td><td>&mdash;</td></tr>
+      <tr class="b"><td>Axis</td><td><b>6</b> U-boats</td><td>7</td></tr>
+    </table>
+    <div class="sources">Sources &middot; <a href="https://uboat.net/ops/convoys/convoys.php?convoy=ONS-5" target="_blank" rel="noopener">uboat.net</a> &middot; <a href="https://www.historyofwar.org/articles/battles_convoy_ONS5.html" target="_blank" rel="noopener">History of War</a> &middot; <a href="https://en.wikipedia.org/wiki/Convoy_ONS_5" target="_blank" rel="noopener">Wikipedia</a></div>
+    <button id="replaybtn">&#8635; Replay</button>
+  </div>
+</div>
+
+<div class="hud" id="narration">
+  <p id="phasebody"></p>
+  <div class="cite" id="phasecite"></div>
+</div>
+
+<div class="hud" id="compass">
+  <div>N &uarr;</div>
+  <div id="scalerow">
+    <button id="zout" aria-label="Zoom out">&minus;</button>
+    <div id="kmbar">10 km</div>
+    <button id="zin" aria-label="Zoom in">+</button>
+  </div>
+</div>
+
+<div class="hud" id="console">
+  <button id="rwbtn" aria-label="Rewind">&#171;</button>
+  <button id="playbtn" aria-label="Play or pause">&#9654;</button>
+  <button id="ffbtn" aria-label="Fast forward">&#187;</button>
+  <div id="timeline" role="slider" aria-label="Battle timeline" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0">
+    <div class="rail"></div>
+    <div class="fill" id="tlfill"></div>
+  </div>
+  <div id="clock"></div>
+  <button id="labelbtn" aria-label="Toggle unit labels" title="Labels">
+    <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><circle cx="4" cy="15" r="1.6" fill="currentColor"/><path d="M5.2 13.8 L12 7" stroke="currentColor" stroke-width="1.4" fill="none"/><rect x="10.5" y="3" width="7" height="4.4" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>
+  </button>
+</div>
+
+<script>
+window.BATTLE = {
+  name: 'Convoy ONS 5',
+  scale: 1,
+  tEnd: 100,
+  hook: '40 U-boats hunted one convoy and lost the Atlantic.',
+  field: { w: 1600, h: 900, kmUnits: 10 },   // ~160 km of the North Atlantic air gap, SE of Cape Farewell
+  sides: {
+    a: { name: 'ALLIES', total: 42, pal: ['#256abf', '#3987e5', '#5598e7', '#86b6ef', '#0aa2a9'] },
+    b: { name: 'AXIS', total: 30, pal: ['#a03d18', '#C14E24', '#d96a3a', '#e8875a', '#f0b06a'] },
+  },
+  /* a U-boat is not a destroyer: small, slow on the surface, slower
+     under it, and it turns like a whale. Declared as data — the engine
+     is untouched. */
+  chassis: {
+    uboat: { maxV: 52, k: 2.0, sep: 11, wander: 0.3, turn: 1.0, hGate: 3,
+             domain: 'sea', shape: 'hull', glyph: { len: 7, w: 1.6 } },
+  },
+  terrain: {
+    /* the point of the Black Pit is that there is NOTHING here: the
+       deepest ocean of the crossing, beyond air cover, 400 nm from the
+       nearest land. Audited against the chart — open water is correct. */
+    base: -0.24, rise: 0, noise: 0.05,
+    blobs: [],
+    river: null,
+    names: [
+      { t: 'THE BLACK PIT', x: 700, y: 96 },
+      { t: '← HALIFAX · 1,600 NM', x: 60, y: 640, align: 'left' },
+      { t: 'GREENLAND · 400 NM ↑', x: 330, y: 56 },
+    ],
+    marks: [],
+    title: { name: 'ONS 5', sub: '4–6 May 1943', x: 1080, y: 150 },
+  },
+  units: [
+    /* ---- the convoy: 42 merchantmen in twelve columns, 7½ knots ---- */
+    { id: 'conv', side: 'a', n: 42, kind: 'ship', hull: 0.6, label: 'ONS 5 · 42 MERCHANTMEN',
+      kf: [[0,1150,320,200,112,52,0,6],[20,1010,372,200,112,52,0,6],[40,870,424,200,114,52,0,7],
+           [60,740,476,200,114,52,0,7],[80,610,528,200,112,52,0,6],[100,470,580,200,112,52,0,6]],
+      struck: [[16,0],[24,0.10],[34,0.17],[44,0.24],[54,0.29],[100,0.29]],
+      melee: [] },
+    /* B7 close screen — Sherwood in Tay after Duncan turned for fuel */
+    { id: 'tay', side: 'a', n: 7, kind: 'ship', hull: 0.8, score: false, label: 'SHERWOOD · B7 SCREEN',
+      kf: [[0,1140,318,200,190,120,0,20],[20,1000,370,200,190,120,0,20],[40,862,422,200,192,122,0,21],
+           [60,732,474,200,196,124,0,24],[80,602,526,200,196,124,0,24],[100,462,578,200,192,122,0,21]],
+      melee: [] },
+    /* Oribi and Offa, detached from the 3rd Support Group */
+    { id: 'orbi', side: 'a', n: 2, kind: 'ship', hull: 0.9, score: false, label: 'ORIBI & OFFA · 3RD SG',
+      kf: [[0,1560,120,215,26,16,0,6],[12,1240,270,205,26,16,0,6],[40,900,400,200,26,16,0,6],
+           [56,780,455,200,26,16,0,6],[64,660,330,255,26,16,0,8],[74,560,430,220,28,16,0,8],
+           [82,600,560,180,26,16,0,8],[92,520,540,200,26,16,0,6],[100,470,560,200,26,16,0,6]],
+      melee: [] },
+    /* Pelican's 1st Support Group, racing up astern on the last morning */
+    { id: 'sg1', side: 'a', n: 5, kind: 'ship', hull: 0.85, score: false, label: 'PELICAN · 1ST SUPPORT GROUP',
+      kf: [[0,2150,760,235,60,24,0,8],[78,1548,694,235,56,22,0,8],[86,1400,640,235,64,26,0,9],
+           [94,900,600,215,66,26,0,9],[100,700,590,205,66,26,0,9]],
+      melee: [] },
+    /* ---- the wolfpacks: groups Fink and Amsel, ~30 boats in contact ---- */
+    { id: 'fink', side: 'b', n: 16, kind: 'uboat', label: 'GRUPPE FINK',
+      kf: [[0,520,300,20,520,260,0,34],[16,760,340,20,360,220,0,26],[26,900,380,15,260,170,0,22],
+           [36,830,420,10,300,200,0,24],[50,760,470,15,340,220,0,26],[64,700,500,10,280,180,0,22],
+           [76,640,520,10,230,150,0,20],[88,700,470,30,300,190,0,26],[100,1430,240,35,340,200,0,28]],
+      kill: [[70,0],[78,0.13],[90,0.25]],
+      melee: [] },
+    { id: 'amsl', side: 'b', n: 14, kind: 'uboat', label: 'GRUPPE AMSEL',
+      kf: [[0,700,880,340,480,200,0,32],[18,822,724,345,340,150,0,22],[30,940,470,350,240,140,0,22],
+           [40,880,540,345,280,170,0,24],[56,800,570,350,300,180,0,26],[72,700,590,355,240,150,0,22],
+           [86,760,560,0,280,170,0,24],[100,1400,700,15,300,180,0,26]],
+      kill: [[78,0],[94,0.145]],
+      melee: [] },
+  ],
+  /* torpedoes are missiles (1 tracer = 1 torpedo), depth-charge and
+     gun attacks are shot. The fog night is the escorts' volley, not
+     the boats'. */
+  volleys: [
+    { from: 'fink', to: 'conv', t0: 17, t1: 33, rate: 4, kind: 'missile' },
+    { from: 'amsl', to: 'conv', t0: 22, t1: 34, rate: 3, kind: 'missile' },
+    { from: 'tay',  to: 'fink', t0: 19, t1: 34, rate: 5, kind: 'shot' },
+    { from: 'fink', to: 'conv', t0: 40, t1: 52, rate: 2, kind: 'missile' },
+    { from: 'fink', to: 'conv', t0: 72, t1: 84, rate: 2, kind: 'missile' },
+    { from: 'amsl', to: 'conv', t0: 74, t1: 84, rate: 2, kind: 'missile' },
+    { from: 'tay',  to: 'fink', t0: 70, t1: 88, rate: 8, kind: 'shot' },
+    { from: 'tay',  to: 'amsl', t0: 74, t1: 88, rate: 5, kind: 'shot' },
+    { from: 'orbi', to: 'fink', t0: 62, t1: 86, rate: 5, kind: 'shot' },
+    { from: 'sg1',  to: 'amsl', t0: 90, t1: 98, rate: 6, kind: 'shot' },
+  ],
+  phases: [
+    { t: 0, body: 'This is the battle for Convoy ONS 5 in the North Atlantic on 4 May 1943, where 42 Allied merchantmen crawl through the Black Pit, the mid ocean gap beyond all air cover. More than 40 German U-boats are gathering across their course.',
+      cite: 'Roskill, The War at Sea II · Blair, Hitler’s U-Boat War II' },
+    { t: 14, body: 'After dark the U-boats of Gruppe Fink come in from both bows again and again, firing torpedoes into the columns, and 7 ships go down in one night. Sherwood’s 7 worn escort warships race from attack to attack in the dark.',
+      cite: 'uboat.net, ONS 5 · Roskill II' },
+    { t: 34, body: 'The attacks press on into daylight on Dönitz’s direct order, which his captains are rarely asked to risk, and more ships are lost through the day. But the ring of escorts bends without breaking, and the convoy closes up and plods on toward Halifax.',
+      cite: 'Blair II · History of War, ONS 5' },
+    { t: 54, body: 'At dusk fog rolls over the sea, and it should be the killing night, because a surfaced U-boat is now invisible to any lookout. But the escorts’ radar sees through fog that periscopes cannot, and every approaching boat lights up a screen.',
+      cite: 'Roskill II · Gretton, Convoy Escort Commander' },
+    { t: 70, body: 'Through that fog night the pack attacks more than 20 times and not one torpedo finds a ship. The escorts run down every radar contact, the destroyer Oribi rams a U-boat out of the fog, and 6 submarines die in these hours.',
+      cite: 'uboat.net, ONS 5 · Blair II' },
+    { t: 88, body: 'At first light Pelican’s fresh support group sweeps up behind the convoy and kills again, and Dönitz reads the night’s disastrous signals from his headquarters. He orders the operation broken off, and the surviving boats turn east and run while the convoy holds course for Halifax.',
+      cite: 'History of War, ONS 5 · Roskill II' },
+    { t: 96, body: '13 merchantmen were lost and not one escort, against 6 U-boats destroyed, a trade the U-boat arm could not afford. Within 3 weeks Dönitz withdrew his boats from the North Atlantic, because the tide of the longest battle of the war had turned here.',
+      cite: 'Roskill II · Blair II · uboat.net' },
+  ],
+};
+</script>
+<script src="../engine.js?v=5591be0"></script>
+</body>
+</html>

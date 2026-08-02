@@ -1,0 +1,326 @@
+/* SANDTABLE — shared battle-page chrome */
+:root {
+  --ink: #0d0d0d;
+  --bone: #d8d3c8;
+  --bone-dim: #8f8a80;
+  --bone-faint: #5a564f;
+  --sideA: #3987e5;
+  --sideA-hi: #86b6ef;
+  --sideB: #C14E24;
+  --sideB-hi: #e8875a;
+  --hair: rgba(216, 211, 200, 0.14);
+  --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+  --mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  background: var(--ink);
+  color: var(--bone);
+  font-family: var(--serif);
+  overflow: hidden;
+}
+#field { position: fixed; inset: 0; display: block; cursor: grab; touch-action: none; }
+#field.dragging { cursor: grabbing; }
+
+.hud { position: fixed; z-index: 5; pointer-events: none; }
+.hud > * { pointer-events: auto; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+#envbadge {
+  position: fixed; z-index: 9; top: 10px; left: 50%; transform: translateX(-50%);
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.3em;
+  color: var(--sideB-hi); border: 1px solid rgba(232, 135, 90, 0.4);
+  padding: 3px 8px 3px 10px; pointer-events: none;
+}
+
+/* ---- title block ---- */
+#masthead { top: 24px; left: 28px; max-width: 380px; }
+#masthead .crumb {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em;
+  color: var(--bone-faint); text-transform: uppercase; text-decoration: none;
+}
+#masthead .crumb:hover { color: var(--sideB-hi); }
+#masthead h1 {
+  font-size: clamp(34px, 5vw, 56px); font-weight: 400;
+  letter-spacing: 0.06em; line-height: 1.05; margin: 4px 0 6px;
+  text-wrap: balance;
+}
+#masthead .sub {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em;
+  color: var(--bone-dim); text-transform: uppercase;
+}
+
+/* ---- scoreboard stack: score up top, after-action docks beneath ---- */
+#scorestack {
+  top: 24px; right: 28px;
+  display: flex; flex-direction: column; gap: 0; align-items: flex-end;
+}
+#muster {
+  background: rgba(13, 13, 13, 0.66);
+  border: 1px solid var(--hair);
+  padding: 9px 14px 8px;
+  font-family: var(--mono);
+  width: min(300px, calc(100vw - 56px));
+}
+#muster .mhead {
+  font-size: 8.5px; letter-spacing: 0.26em; color: var(--bone-faint);
+  text-transform: uppercase; margin-bottom: 6px;
+}
+#muster .mrow {
+  display: grid;
+  grid-template-columns: 8px 1fr auto auto;
+  align-items: baseline; gap: 8px;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 3px;
+}
+#muster .mrow i { width: 8px; height: 8px; align-self: center; }
+#muster .mrow.a i { background: var(--sideA); }
+#muster .mrow.b i { background: var(--sideB); }
+#muster .mrow span { font-size: 10px; letter-spacing: 0.16em; color: var(--bone-dim); text-transform: uppercase; }
+#muster .mrow b { font-size: 21px; font-weight: 400; text-align: right; line-height: 1.1; }
+#muster .mrow.a b { color: var(--sideA-hi); }
+#muster .mrow.b b { color: var(--sideB-hi); }
+#muster .mrow em { font-style: normal; font-size: 9.5px; color: var(--bone-faint); }
+#muster .mnote {
+  font-size: 8.5px; letter-spacing: 0.16em; color: var(--bone-faint);
+  text-transform: uppercase; margin-top: 5px;
+}
+
+/* ---- narration ---- */
+#narration {
+  left: 28px; bottom: 96px; width: min(380px, calc(100vw - 56px));
+  background: rgba(13, 13, 13, 0.72);
+  border-left: 2px solid var(--sideB);
+  padding: 14px 18px 12px;
+  backdrop-filter: blur(3px);
+}
+#narration .phase-eyebrow {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.22em;
+  color: var(--sideB-hi); text-transform: uppercase;
+}
+#narration h2 { font-size: 19px; font-weight: 400; margin: 5px 0 7px; letter-spacing: 0.02em; }
+#narration p { font-size: 14px; line-height: 1.5; color: var(--bone); max-width: 62ch; }
+#narration .cite {
+  font-family: var(--mono); font-size: 9.5px; color: var(--bone-faint);
+  letter-spacing: 0.1em; margin-top: 8px;
+}
+#narration { padding-right: 36px; }
+#narrtoggle {
+  position: absolute; top: 6px; right: 8px;
+  background: none; border: none; color: var(--bone-faint);
+  font-family: var(--mono); font-size: 14px; line-height: 1;
+  padding: 4px 7px; cursor: pointer;
+}
+#narrtoggle:hover { color: var(--bone); }
+#narration.min { cursor: pointer; padding: 9px 36px 9px 14px; }
+#narration.min h2, #narration.min .cite { display: none; }
+#narration.min p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: min(340px, 56vw); font-size: 12px; margin: 0; }
+#narration.min .phase-eyebrow { font-size: 10px; }
+
+/* ---- timeline console ---- */
+#console {
+  left: 28px; right: 28px; bottom: 24px;
+  display: flex; align-items: center; gap: 14px;
+  font-family: var(--mono);
+}
+#console button {
+  background: rgba(13, 13, 13, 0.6); border: 1px solid var(--hair); color: var(--bone);
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em;
+  padding: 6px 12px; cursor: pointer;
+}
+#console button:hover { border-color: var(--bone-dim); }
+#console button:focus-visible { outline: 1px solid var(--sideA-hi); outline-offset: 2px; }
+#console button.hidden { display: none; }
+#console button.on { border-color: var(--sideB-hi); color: var(--sideB-hi); }
+/* the labels toggle is an icon the size of the transport buttons */
+#labelbtn { padding: 6px 10px; }
+#labelbtn svg {
+  display: block; width: 15px; height: 15px;
+  fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: round;
+}
+#labelbtn.off { opacity: 0.4; }
+#timeline { flex: 1; position: relative; height: 34px; cursor: pointer; touch-action: none; }
+#timeline .rail {
+  position: absolute; left: 0; right: 0; top: 16px; height: 2px;
+  background: var(--hair);
+}
+#timeline .fill {
+  position: absolute; left: 0; top: 16px; height: 2px; width: 0%;
+  background: linear-gradient(90deg, var(--sideA), var(--sideB-hi));
+}
+#timeline .tick {
+  position: absolute; top: 12px; width: 1px; height: 10px;
+  background: var(--bone-faint);
+}
+#timeline .ticklabel {
+  position: absolute; top: -6px; transform: translateX(-50%);
+  font-size: 8.5px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--bone-faint); white-space: nowrap;
+}
+#timeline .ticklabel.active { color: var(--bone); }
+#timeline .ticklabel.row2 { top: -18px; }
+#timeline .ticklabel.hidelab { display: none; }
+#clock { font-size: 11px; color: var(--bone-dim); min-width: 28px; text-align: right; }
+
+/* ---- compass & scale: zoom lives ON the scale bar, − · distance · + ---- */
+#compass {
+  right: 28px; bottom: 96px; text-align: right;
+  font-family: var(--mono); font-size: 9.5px; color: var(--bone-faint);
+  letter-spacing: 0.14em;
+}
+#scalerow {
+  display: flex; align-items: flex-end; justify-content: flex-end;
+  gap: 9px; margin-top: 4px;
+}
+#scalerow button {
+  background: none; border: none; padding: 0 2px;
+  color: var(--bone-faint); font-family: var(--mono);
+  font-size: 13px; line-height: 0.9; cursor: pointer;
+}
+#scalerow button:hover { color: var(--bone); }
+#scalerow button:focus-visible { outline: 1px solid var(--sideA-hi); outline-offset: 2px; }
+#kmbar { border-top: 1px solid var(--bone-faint); padding-top: 3px; }
+
+/* ---- summary: grows straight out of the scoreboard. Numbers in a quiet
+   table; the battle's prose lives in the final phase window, not here ---- */
+#aftermath {
+  width: min(300px, calc(100vw - 56px));
+  background: rgba(13, 13, 13, 0.88); border: 1px solid var(--hair);
+  border-top: none;
+  display: none;
+}
+#aftermath.show { display: block; }
+#aftermath .ahead {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 8px 7px 15px; cursor: pointer;
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.26em;
+  color: var(--bone-faint); text-transform: uppercase;
+}
+#afttoggle {
+  background: none; border: none; color: var(--bone-faint);
+  font-family: var(--mono); font-size: 13px; line-height: 1;
+  padding: 2px 7px; cursor: pointer;
+}
+#afttoggle:hover { color: var(--bone); }
+#aftermath.min > *:not(.ahead) { display: none; }
+#aftermath .tally {
+  width: calc(100% - 30px); margin: 0 15px 10px;
+  border-collapse: collapse;
+  font-family: var(--mono); font-size: 9.5px;
+  font-variant-numeric: tabular-nums; color: var(--bone-dim);
+}
+#aftermath .tally th {
+  font-weight: 400; font-size: 7.5px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--bone-faint);
+  text-align: right; padding: 1px 0 4px 9px; white-space: nowrap;
+}
+#aftermath .tally td {
+  text-align: right; padding: 5px 0 5px 9px;
+  border-top: 1px solid var(--hair); white-space: nowrap;
+}
+#aftermath .tally th:first-child, #aftermath .tally td:first-child {
+  text-align: left; padding-left: 0;
+}
+#aftermath .tally td b { color: var(--bone); font-weight: 400; }
+#aftermath .tally tr.a td:first-child { color: var(--sideA-hi); }
+#aftermath .tally tr.b td:first-child { color: var(--sideB-hi); }
+#aftermath .note {
+  font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.1em;
+  color: var(--bone-faint); text-transform: uppercase; margin: -3px 15px 9px;
+}
+#aftermath .sources {
+  font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.14em;
+  color: var(--bone-faint); text-transform: uppercase; margin: -2px 15px 10px;
+}
+#aftermath .sources a { color: var(--bone-dim); text-decoration: none; }
+#aftermath .sources a:hover { color: var(--sideB-hi); }
+#replaybtn {
+  background: none; border: 1px solid var(--hair); color: var(--bone);
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+  padding: 6px 13px; cursor: pointer; text-transform: uppercase;
+  margin: 0 15px 13px;
+}
+#replaybtn:hover { border-color: var(--sideB-hi); color: var(--sideB-hi); }
+
+@media (max-width: 760px) {
+  #masthead { left: 16px; top: calc(14px + env(safe-area-inset-top, 0px)); }
+  #scorestack { right: 16px; top: calc(14px + env(safe-area-inset-top, 0px)); }
+  #muster { width: min(252px, calc(100vw - 32px)); padding: 8px 10px 7px; }
+  #aftermath { width: min(252px, calc(100vw - 32px)); }
+  #muster .mrow b { font-size: 15px; }
+  #muster .mrow span { font-size: 9px; letter-spacing: 0.1em; }
+  #aftermath .tally { font-size: 9px; }
+  #aftermath .tally th { font-size: 7px; letter-spacing: 0.08em; padding-left: 7px; }
+  #aftermath .tally td { padding-left: 7px; }
+  #narration { left: 16px; bottom: calc(88px + env(safe-area-inset-bottom, 0px)); padding: 10px 14px 9px; width: min(320px, calc(100vw - 32px)); }
+  #narration p { font-size: 12.5px; }
+  #console { left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); gap: 10px; }
+  /* fingers, not cursors */
+  #console button { padding: 10px 13px; font-size: 12px; }
+  #labelbtn { padding: 10px 11px; }
+  #labelbtn svg { width: 16px; height: 16px; }
+  #timeline { height: 40px; }
+  #timeline .rail, #timeline .fill { top: 19px; }
+  #timeline .tick { top: 15px; }
+  #timeline .ticklabel { display: none; }
+  /* the zoom controls live in the compass block — a phone needs them most.
+     They move TOP-LEFT under the crumb: the bottom third of a phone is
+     narration + console, and an expanded phase card would bury them. */
+  /* the strip between the phase card and the console is the only band no
+     other panel ever grows into — the zoom controls live there */
+  #compass {
+    right: 14px; left: auto; top: auto;
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+  }
+  #compass > div:first-child { display: none; }
+  #scalerow { gap: 14px; margin-top: 0; }
+  #scalerow button { font-size: 20px; padding: 6px 10px; line-height: 1; }
+  #kmbar { font-size: 9px; }
+  #envbadge { top: calc(10px + env(safe-area-inset-top, 0px)); }
+}
+/* the smallest screens: one column of HUD, quiet type */
+@media (max-width: 480px) {
+  #muster, #aftermath { width: min(228px, calc(100vw - 24px)); }
+  #masthead .crumb { font-size: 9px; }
+  #narration h2 { font-size: 16px; }
+  #narration { max-height: 38vh; overflow-y: auto; }
+}
+
+/* ---- FILM MODE -------------------------------------------------------
+   The reel exporter's stage. `body.film` turns the page into a captioned
+   film frame: everything INTERACTIVE disappears — a video cannot be
+   clicked, so buttons and toggles would only ever be set dressing — while
+   the readable chrome (timeline, clock, phase card, scoreboard, compass,
+   scale bar) stays. Four inset properties pull the fixed chrome inside a
+   platform's safe area, where Shorts/Reels draw their own UI over the
+   outer band of the frame:
+     document.body.classList.add('film');
+     document.body.style.setProperty('--film-bottom', '320px');
+   The exporter drives camera and transport through the bench hook. */
+body.film { --film-top: 0px; --film-right: 0px; --film-bottom: 0px; --film-left: 0px; }
+body.film #console button,
+body.film #narrtoggle, body.film #afttoggle, body.film #replaybtn,
+body.film #scalerow button,
+body.film #envbadge { display: none !important; }
+body.film #console {
+  left: calc(28px + var(--film-left));
+  right: calc(28px + var(--film-right));
+  bottom: calc(24px + var(--film-bottom));
+}
+body.film #narration {
+  left: calc(28px + var(--film-left));
+  bottom: calc(96px + var(--film-bottom));
+}
+body.film #compass {
+  top: auto; left: auto;
+  right: calc(28px + var(--film-right));
+  bottom: calc(96px + var(--film-bottom));
+}
+body.film #scorestack {
+  top: calc(24px + var(--film-top));
+  right: calc(28px + var(--film-right));
+}

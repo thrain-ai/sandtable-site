@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sandtable — 73 Easting, 1991</title>
+<meta name="description" content="The Battle of 73 Easting re-enacted from above — nine Abrams crest a rise in a sandstorm into the Republican Guard, twenty-three minutes follow, and a year later DARPA turns it into the first battle ever simulated.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="SANDTABLE">
+<meta property="og:title" content="Sandtable — 73 Easting, 1991">
+<meta property="og:description" content="The Battle of 73 Easting re-enacted from above — nine Abrams crest a rise in a sandstorm into the Republican Guard, twenty-three minutes follow, and a year later DARPA turns it into the first battle ever simulated.">
+<meta property="og:url" content="https://sandtable.thrain.ai/73easting/">
+<meta property="og:image" content="https://sandtable.thrain.ai/73easting/og.jpg">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://sandtable.thrain.ai/73easting/og.jpg">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
+<link rel="stylesheet" href="../style.css?v=5591be0">
+</head>
+<body>
+
+<canvas id="field" aria-label="Animated top-down re-enactment of the Battle of 73 Easting"></canvas>
+
+<div class="hud" id="masthead">
+  <a class="crumb" href="../">&larr; Sandtable</a>
+  <h1 class="sr-only">73 Easting &mdash; 26 February 1991, Iraqi desert</h1>
+</div>
+
+<div class="hud" id="scorestack">
+  <div id="muster">
+    <div class="mhead">Vehicles destroyed</div>
+    <div class="mrow a"><i></i><span>United States</span><b id="fallenA">0</b><em>/ 63</em></div>
+    <div class="mrow b"><i></i><span>Iraq</span><b id="fallenB">0</b><em>/ 104</em></div>
+  </div>
+  <div id="aftermath">
+    <div class="ahead"><span>Summary</span><button id="afttoggle" aria-label="Minimize summary">&minus;</button></div>
+    <table class="tally">
+      <tr><th></th><th>Vehicles lost</th><th>Killed</th></tr>
+      <tr class="a"><td>United States</td><td><b>1</b></td><td>1</td></tr>
+      <tr class="b"><td>Iraq</td><td><b>~92</b></td><td>&mdash;</td></tr>
+    </table>
+    <div class="sources">Sources &middot; <a href="https://thestrategybridge.org/the-bridge/2016/2/26/eagle-troop-at-the-battle-of-73-easting" target="_blank" rel="noopener">McMaster, The Strategy Bridge</a> &middot; <a href="https://en.wikipedia.org/wiki/Battle_of_73_Easting" target="_blank" rel="noopener">Wikipedia</a></div>
+    <button id="replaybtn">&#8635; Replay</button>
+  </div>
+</div>
+
+<div class="hud" id="narration">
+  <p id="phasebody"></p>
+  <div class="cite" id="phasecite"></div>
+</div>
+
+<div class="hud" id="compass">
+  <div>N &uarr;</div>
+  <div id="scalerow">
+    <button id="zout" aria-label="Zoom out">&minus;</button>
+    <div id="kmbar">1 km</div>
+    <button id="zin" aria-label="Zoom in">+</button>
+  </div>
+</div>
+
+<div class="hud" id="console">
+  <button id="rwbtn" aria-label="Rewind">&#171;</button>
+  <button id="playbtn" aria-label="Play or pause">&#9654;</button>
+  <button id="ffbtn" aria-label="Fast forward">&#187;</button>
+  <div id="timeline" role="slider" aria-label="Battle timeline" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0">
+    <div class="rail"></div>
+    <div class="fill" id="tlfill"></div>
+  </div>
+  <div id="clock">0:00</div>
+  <button id="labelbtn" aria-label="Toggle unit labels" title="Labels (L)"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M1.5 12.5 L6 8"/><rect x="6" y="1.5" width="6.5" height="6.5"/></svg></button>
+</div>
+
+<script>
+window.BATTLE = {
+  field: { w: 1600, h: 900, kmUnits: 114 },   // ~14 km of featureless Iraqi desert
+  scale: 1,                                   // one glyph = one vehicle
+  tEnd: 100,
+  hook: '9 American tanks destroyed an entire brigade.',
+  sides: {
+    a: { name: 'UNITED STATES', total: 63, pal: ['#256abf', '#3987e5', '#5598e7', '#86b6ef', '#0aa2a9'] },
+    b: { name: 'IRAQ', total: 104, pal: ['#a03d18', '#C14E24', '#d96a3a', '#e8875a', '#f0b06a'] },
+  },
+  terrain: {
+    base: 0.14, rise: 0.02, noise: 0.11, floor: 0.03,
+    /* almost nothing: a low rise along the 73 Easting grid line — the
+       whole battle happens because of what waits behind its crest */
+    blobs: [
+      { x: 930, y: 240, r: 150, h: 0.05, flat: 0.4 },
+      { x: 950, y: 470, r: 160, h: 0.055, flat: 0.4 },
+      { x: 935, y: 690, r: 150, h: 0.05, flat: 0.4 },
+    ],
+    river: null,
+    names: [
+      { t: '70 EASTING', x: 600, y: 60 },
+      { t: '73 EASTING', x: 940, y: 60 },
+      { t: 'THE SHAMAL · VISIBILITY 400 M', x: 300, y: 96 },
+    ],
+    /* the two grid lines, dotted north–south */
+    marks: [
+      { x: 598, y: 100 }, { x: 598, y: 180 }, { x: 598, y: 260 }, { x: 598, y: 340 },
+      { x: 598, y: 420 }, { x: 598, y: 500 }, { x: 598, y: 580 }, { x: 598, y: 660 },
+      { x: 598, y: 740 }, { x: 598, y: 820 },
+      { x: 938, y: 100 }, { x: 938, y: 180 }, { x: 938, y: 260 }, { x: 938, y: 340 },
+      { x: 938, y: 420 }, { x: 938, y: 500 }, { x: 938, y: 580 }, { x: 938, y: 660 },
+      { x: 938, y: 740 }, { x: 938, y: 820 },
+    ],
+    title: { name: '73 Easting', sub: '26 February 1991', x: 1330, y: 742 },
+  },
+  /* One glyph = one vehicle. 2nd Squadron, 2nd Armored Cavalry Regiment:
+     Eagle Troop (9 M1A1 + 12 M3), Ghost north, Iron south — 63 vehicles
+     against the Tawakalna Division's 18th Mechanized and the 12th Armored
+     Division's 9th Brigade line: 104 tanks and carriers on this front.
+     T=100 ≈ 15:30–00:30. Angles: 0=E, 90=S, 180=W, 270=N. */
+  units: [
+    /* ---- 2nd Squadron, 2nd ACR — attacking east through the storm ---- */
+    { id: 'eagle9', side: 'a', n: 9, kind: 'tank', label: 'EAGLE TROOP · 9 ABRAMS',
+      kf: [[0,150,450,0,92,40,0,10],[10,380,452,0,96,40,0,9],[20,624,455,0,100,42,4,9],
+           [30,810,458,0,104,44,4,10],[44,1084,460,0,110,46,0,12],[100,1084,460,0,110,46,0,12]],
+      melee: [[20,44,6]] },
+    { id: 'eagle12', side: 'a', n: 12, kind: 'tank', label: '12 BRADLEYS',
+      kf: [[0,84,478,0,100,44,0,12],[10,300,480,0,104,44,0,11],[20,540,484,0,108,46,0,11],
+           [30,724,487,0,110,46,0,12],[44,1010,490,0,114,48,0,13],[100,1010,490,0,114,48,0,13]],
+      melee: [[22,44,5]] },
+    { id: 'ghost', side: 'a', n: 21, kind: 'tank', label: 'GHOST TROOP',
+      kf: [[0,140,248,0,120,52,0,12],[14,420,250,0,124,52,0,11],[26,700,252,0,128,54,0,11],
+           [38,896,254,0,132,54,0,12],[100,896,254,0,132,54,0,12]],
+      kill: [[62,0],[64,0.048]],
+      melee: [[54,86,6]] },
+    { id: 'iron', side: 'a', n: 21, kind: 'tank', label: 'IRON TROOP',
+      kf: [[0,130,652,0,120,52,0,12],[16,420,654,0,124,52,0,11],[30,720,656,0,128,54,0,11],
+           [50,1004,658,0,132,54,0,12],[100,1004,658,0,132,54,0,12]],
+      melee: [[36,54,6]] },
+
+    /* ---- the Tawakalna line, dug in facing west behind the rise ---- */
+    { id: 'iq_out', side: 'b', n: 40, kind: 'inf', score: false, label: 'OUTPOST VILLAGE',
+      kf: [[0,690,472,180,44,28,0,12],[100,690,472,180,44,28,0,12]],
+      kill: [[12,0],[20,0.55],[30,0.7]],
+      melee: [[12,22,5]] },
+    { id: 'iq_t72a', side: 'b', n: 18, kind: 'tank', label: '18 T-72 · REVERSE SLOPE',
+      kf: [[0,1014,432,180,64,74,0,14],[100,1014,432,180,64,74,0,14]],
+      kill: [[22,0],[32,0.95]],
+      melee: [[22,34,6]] },
+    { id: 'iq_t72b', side: 'b', n: 12, kind: 'tank', label: 'NORTHERN COMPANY',
+      kf: [[0,1034,256,180,60,64,0,14],[100,1034,256,180,60,64,0,14]],
+      kill: [[30,0],[44,0.85]],
+      melee: [[30,46,6]] },
+    { id: 'iq_bmp', side: 'b', n: 26, kind: 'tank', label: 'BMP LINE',
+      kf: [[0,1084,460,180,340,44,0,16],[100,1084,460,180,340,44,0,16]],
+      kill: [[24,0],[48,0.8]],
+      melee: [[26,48,5]] },
+    { id: 'iq_s', side: 'b', n: 14, kind: 'tank', label: 'SOUTHERN COMPANY',
+      kf: [[0,1054,658,180,62,66,0,14],[100,1054,658,180,62,66,0,14]],
+      kill: [[36,0],[52,0.9]],
+      melee: [[38,54,6]] },
+
+    /* ---- the night counterattacks against Ghost ---- */
+    { id: 'ctk1', side: 'b', n: 18, kind: 'tank', label: 'FIRST WAVE · 18TH MECH',
+      kf: [[0,1478,382,235,90,60,0,14],[52,1478,382,235,90,60,0,14],[60,1250,300,215,96,62,0,14],
+           [68,1044,242,210,100,64,0,15],[100,1044,242,210,100,64,0,15]],
+      kill: [[58,0],[72,0.95]],
+      melee: [[58,72,7]] },
+    { id: 'ctk2', side: 'b', n: 16, kind: 'tank', label: 'SECOND WAVE · 9TH ARMORED',
+      kf: [[0,1532,478,250,86,58,0,14],[68,1532,478,250,86,58,0,14],[78,1330,360,205,92,60,0,14],
+           [86,1140,288,190,96,62,0,15],[90,1200,296,15,92,58,0,18],
+           [100,1780,330,15,80,50,0,24]],
+      kill: [[74,0],[88,0.9]],
+      melee: [[76,88,7]] },
+  ],
+  /* tank gunnery is 'shot'; TOWs from the Bradleys are 'missile'. Iraqi
+     return fire flies and lands nothing — US kill schedules stay empty,
+     which is the record: they were shooting at muzzle flashes in a storm. */
+  volleys: [
+    { from: 'eagle9', to: 'iq_out', t0: 12, t1: 20, rate: 6, kind: 'shot' },
+    { from: 'eagle9', to: 'iq_t72a', t0: 21, t1: 40, rate: 9, kind: 'shot' },
+    { from: 'eagle12', to: 'iq_t72a', t0: 26, t1: 40, rate: 1.5, kind: 'missile' },
+    { from: 'eagle9', to: 'iq_bmp', t0: 30, t1: 46, rate: 6, kind: 'shot' },
+    { from: 'iq_t72a', to: 'eagle9', t0: 23, t1: 36, rate: 4, kind: 'shot' },
+    { from: 'iq_bmp', to: 'eagle12', t0: 26, t1: 44, rate: 3, kind: 'shot' },
+    { from: 'ghost', to: 'iq_t72b', t0: 30, t1: 44, rate: 6, kind: 'shot' },
+    { from: 'iron', to: 'iq_s', t0: 36, t1: 52, rate: 6, kind: 'shot' },
+    { from: 'ghost', to: 'ctk1', t0: 54, t1: 70, rate: 8, kind: 'shot' },
+    { from: 'ghost', to: 'ctk1', t0: 56, t1: 70, rate: 2, kind: 'missile' },
+    { from: 'ctk1', to: 'ghost', t0: 56, t1: 70, rate: 5, kind: 'shot' },
+    { from: 'ghost', to: 'ctk2', t0: 74, t1: 88, rate: 7, kind: 'shot' },
+    { from: 'ghost', to: 'ctk2', t0: 76, t1: 88, rate: 2, kind: 'missile' },
+    { from: 'ctk2', to: 'ghost', t0: 76, t1: 86, rate: 4, kind: 'shot' },
+  ],
+  phases: [
+    { t: 0, body: 'This is the Battle of 73 Easting in southern Iraq on 26 February 1991, where American armoured cavalry leads a whole corps into the flank of Saddam’s Republican Guard. A desert sandstorm cuts visibility to 400 metres, so neither side can see the other coming.',
+      cite: '— Wikipedia · McMaster, The Strategy Bridge' },
+    { t: 10, body: 'At 16:10 Iraqi infantry in a fortified outpost village opens fire on Eagle Troop, and McMaster’s 9 Abrams tanks answer on the move. They shell the strongpoint without slowing as they roll east, until the village falls silent behind them.',
+      cite: '— McMaster, The Strategy Bridge' },
+    { t: 20, body: 'At 16:20 the tanks crest a low rise and find the Tawakalna Division laid out point blank before them, 18 T-72s dug in on the reverse slope. In the seconds that follow the American gunners simply shoot faster and straighter than the men they surprised.',
+      cite: '— McMaster, The Strategy Bridge · Wikipedia' },
+    { t: 32, body: 'Eagle Troop drives clean through the position without stopping, and in 23 minutes destroys about 28 tanks and dozens of other vehicles before halting only because it runs out of targets. Eagle has gone through an entire brigade position without one American loss.',
+      cite: '— Wikipedia · McMaster, The Strategy Bridge' },
+    { t: 52, body: 'From dusk the Tawakalna counterattacks in waves, first the 18th and then the 9th, against Ghost Troop’s thin screen line for 6 hours through hundreds of rounds of called in artillery. A machine gun round kills Sergeant Nels Moller, the only American to die on this field.',
+      cite: '— Wikipedia' },
+    { t: 86, body: 'By midnight the guns fall silent among more than 100 wrecks, with the regiment counting 159 tanks and 260 other vehicles destroyed. Within a year this fight is rebuilt inside a computer, and becomes the first battle in history to live on as a simulation.',
+      cite: '— Wikipedia · Institute for Defense Analyses' },
+  ],
+};
+</script>
+<script src="../engine.js?v=5591be0"></script>
+</body>
+</html>

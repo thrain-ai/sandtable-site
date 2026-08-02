@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sandtable — Prokhorovka, 1943</title>
+<meta name="description" content="Prokhorovka, 12 July 1943, re-enacted from above — one glyph is one tank, and the count is the revised count, not the legend.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="SANDTABLE">
+<meta property="og:title" content="Sandtable — Prokhorovka, 1943">
+<meta property="og:description" content="Prokhorovka, 12 July 1943, re-enacted from above — one glyph is one tank, and the count is the revised count, not the legend.">
+<meta property="og:url" content="https://sandtable.thrain.ai/kursk/">
+<meta property="og:image" content="https://sandtable.thrain.ai/kursk/og.jpg">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://sandtable.thrain.ai/kursk/og.jpg">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
+<link rel="stylesheet" href="../style.css?v=5591be0">
+</head>
+<body>
+
+<canvas id="field" aria-label="Animated top-down re-enactment of the tank battle at Prokhorovka"></canvas>
+
+<div class="hud" id="masthead">
+  <a class="crumb" href="../">&larr; Sandtable</a>
+  <h1 class="sr-only">Prokhorovka &mdash; 12 July 1943, Kursk salient</h1>
+</div>
+
+<div class="hud" id="scorestack">
+  <div id="muster">
+    <div class="mhead">Tanks destroyed</div>
+    <div class="mrow a"><i></i><span>Soviet Union</span><b id="fallenA">0</b><em>/ 616</em></div>
+    <div class="mrow b"><i></i><span>Germany</span><b id="fallenB">0</b><em>/ 294</em></div>
+  </div>
+  <div id="aftermath">
+    <div class="ahead"><span>Summary</span><button id="afttoggle" aria-label="Minimize summary">&minus;</button></div>
+    <table class="tally">
+      <tr><th></th><th>Knocked out</th><th>Beyond repair</th><th>Men</th></tr>
+      <tr class="a"><td>Soviet Union</td><td>359</td><td><b>207</b></td><td>~3,563</td></tr>
+      <tr class="b"><td>Germany</td><td>193</td><td><b>20</b></td><td>&mdash;</td></tr>
+    </table>
+    <div class="sources">Sources &middot; <a href="https://tankmuseum.org/prokhorovka-myth-largest-tank-battle/" target="_blank" rel="noopener">The Tank Museum</a> &middot; <a href="https://www.tandfonline.com/doi/full/10.1080/16161262.2019.1606545" target="_blank" rel="noopener">Wheatley 2019</a> &middot; <a href="https://archive.org/details/demolishingmytht0000zamu" target="_blank" rel="noopener">Zamulin</a></div>
+    <button id="replaybtn">&#8635; Replay</button>
+  </div>
+</div>
+
+<div class="hud" id="narration">
+  <p id="phasebody"></p>
+  <div class="cite" id="phasecite"></div>
+</div>
+
+<div class="hud" id="compass">
+  <div>N &uarr;</div>
+  <div id="scalerow">
+    <button id="zout" aria-label="Zoom out">&minus;</button>
+    <div id="kmbar">1 km</div>
+    <button id="zin" aria-label="Zoom in">+</button>
+  </div>
+</div>
+
+<div class="hud" id="console">
+  <button id="rwbtn" aria-label="Rewind">&#171;</button>
+  <button id="playbtn" aria-label="Play or pause">&#9654;</button>
+  <button id="ffbtn" aria-label="Fast forward">&#187;</button>
+  <div id="timeline" role="slider" aria-label="Battle timeline" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0">
+    <div class="rail"></div>
+    <div class="fill" id="tlfill"></div>
+  </div>
+  <div id="clock">0:00</div>
+  <button id="labelbtn" aria-label="Toggle unit labels" title="Labels (L)"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M1.5 12.5 L6 8"/><rect x="6" y="1.5" width="6.5" height="6.5"/></svg></button>
+</div>
+
+<script>
+window.BATTLE = {
+  field: { w: 1600, h: 900, kmUnits: 133.33 },   // ~12 km × 6.75 km of the Psel corridor
+  scale: 1,                                      // one glyph = one tank
+  tEnd: 100,
+  hook: 'The Soviets lost 359 tanks and won anyway.',
+  sides: {
+    a: { name: 'SOVIET UNION', total: 616, pal: ['#256abf', '#3987e5', '#5598e7', '#86b6ef', '#0aa2a9'] },
+    b: { name: 'GERMANY', total: 294, pal: ['#a03d18', '#C14E24', '#d96a3a', '#e8875a', '#f0b06a'] },
+  },
+  terrain: {
+    base: 0.16, rise: -0.05, noise: 0.09, floor: 0.03,
+    blobs: [
+      { x: 770, y: 330, r: 165, h: 0.30 },       // Hill 252.2
+      { x: 380, y: 300, r: 145, h: 0.24 },       // Hill 241.6
+      // the Belgorod–Kursk railway embankment: a low linear ridge closing
+      // the corridor from the south
+      { x: 120, y: 655, r: 115, h: 0.10 },
+      { x: 280, y: 655, r: 115, h: 0.10 },
+      { x: 440, y: 655, r: 115, h: 0.10 },
+      { x: 600, y: 655, r: 115, h: 0.10 },
+      { x: 760, y: 655, r: 115, h: 0.10 },
+      { x: 920, y: 655, r: 115, h: 0.10 },
+      { x: 1080, y: 655, r: 115, h: 0.10 },
+      { x: 1240, y: 655, r: 115, h: 0.10 },
+      { x: 1400, y: 655, r: 115, h: 0.10 },
+      { x: 1560, y: 655, r: 115, h: 0.10 },
+    ],
+    river: { base: 145, halfW: 13 },             // the Psel, closing the corridor from the north
+    woods: [
+      { x: 1140, y: 730, r: 82 },                // Storozhevoye woods
+      { x: 250, y: 545, r: 80 },
+    ],
+    names: [
+      { t: 'PSEL', x: 300, y: 122 },
+      { t: 'HILL 241.6', x: 380, y: 268 },
+      { t: 'HILL 252.2', x: 782, y: 296 },
+      { t: 'OKTYABRSKIY STATE FARM', x: 700, y: 392 },
+      { t: 'ANTI-TANK DITCH', x: 884, y: 226 },
+      { t: 'STOROZHEVOYE WOODS', x: 1300, y: 748 },
+      { t: 'BELGOROD–KURSK RAILWAY', x: 500, y: 700 },
+      { t: 'PROKHOROVKA →', x: 1570, y: 246, align: 'right' },
+    ],
+    // the Soviets' own anti-tank ditch, dug across the corridor — the 29th
+    // Tank Corps charged into it
+    marks: [
+      { x: 872, y: 250 }, { x: 873, y: 274 }, { x: 875, y: 298 }, { x: 876, y: 322 },
+      { x: 878, y: 346 }, { x: 879, y: 370 }, { x: 881, y: 394 }, { x: 882, y: 418 },
+      { x: 884, y: 442 }, { x: 885, y: 466 }, { x: 887, y: 490 }, { x: 888, y: 514 },
+      { x: 890, y: 538 }, { x: 891, y: 562 }, { x: 893, y: 586 },
+    ],
+    title: { name: 'Prokhorovka', sub: '12 July 1943', x: 392, y: 486 },
+  },
+  /* One glyph = one tank. Strengths are the revised, narrow-definition
+     counts for the Prokhorovka field itself: 616 Soviet against 294 German
+     (Tank Museum / Zamulin), not the 800-v-700 of the legend. The Soviet
+     5th Guards Tank Army attacks WEST out of Prokhorovka down a corridor
+     barely 3 km wide, pinched between the Psel and the railway embankment.
+     T=100 ≈ 06:30–18:00, 12 July. Angles: 0=E, 90=S, 180=W, 270=N. */
+  units: [
+    /* ---- Soviet 5th Guards Tank Army (Rotmistrov), attacking west ---- */
+    { id: 't181', side: 'a', n: 65, kind: 'tank', label: '18TH TANK CORPS · 181ST BDE',
+      kf: [[0,1318,255,180,86,58,0,14],[10,1276,256,180,92,62,0,12],[22,1122,260,180,98,68,6,12],
+           [38,982,264,180,102,64,8,14],[52,904,268,180,106,60,6,18],[68,876,270,180,108,58,0,20],
+           [84,906,272,180,108,56,-4,22],[100,932,274,180,108,56,-4,22]],
+      kill: [[26,0],[40,0.09],[56,0.24],[72,0.31],[86,0.33]],
+      melee: [[38,74,7]] },
+    { id: 't170', side: 'a', n: 60, kind: 'tank', label: '170TH BDE',
+      kf: [[0,1362,330,180,82,56,0,14],[10,1320,331,180,88,60,0,12],[22,1170,334,180,94,66,6,12],
+           [38,1030,338,180,98,62,8,14],[52,948,342,180,102,58,6,18],[68,918,344,180,104,56,0,20],
+           [84,948,346,180,104,54,-4,22],[100,974,348,180,104,54,-4,22]],
+      kill: [[28,0],[42,0.08],[58,0.22],[74,0.28],[88,0.30]],
+      melee: [[40,76,7]] },
+    { id: 't110', side: 'a', n: 62, kind: 'tank', label: '110TH BDE · SECOND ECHELON',
+      kf: [[0,1502,286,180,88,60,0,16],[10,1470,287,180,92,64,0,14],[22,1348,290,180,98,68,4,13],
+           [38,1188,293,180,102,66,6,14],[52,1052,296,180,106,62,6,18],[68,988,298,180,108,58,0,20],
+           [84,1012,300,180,108,56,-4,22],[100,1036,302,180,108,56,-4,22]],
+      kill: [[32,0],[46,0.07],[60,0.23],[76,0.30],[88,0.32]],
+      melee: [[52,80,7]] },
+    /* the 29th Tank Corps takes the shortest road to Hill 252.2 — and the
+       anti-tank ditch is on it. deathOrder 'front' eats the leading edge. */
+    { id: 't32', side: 'a', n: 63, kind: 'tank', deathOrder: 'front', label: '29TH TANK CORPS · 32ND BDE',
+      kf: [[0,1330,415,180,88,60,0,14],[10,1288,416,180,94,64,0,12],[22,1118,419,180,100,70,8,12],
+           [38,952,422,180,104,66,10,14],[52,880,425,180,110,60,6,18],[68,894,427,180,114,58,0,20],
+           [84,932,429,180,114,56,-4,22],[100,964,430,180,114,56,-4,22]],
+      kill: [[26,0],[38,0.10],[52,0.36],[68,0.44],[84,0.46]],
+      melee: [[34,72,9]] },
+    { id: 't31', side: 'a', n: 67, kind: 'tank', deathOrder: 'front', label: '31ST BDE',
+      kf: [[0,1345,495,180,86,62,0,14],[10,1302,496,180,92,66,0,12],[22,1130,499,180,100,72,8,12],
+           [38,962,502,180,104,66,10,14],[52,886,505,180,110,60,6,18],[68,900,507,180,114,58,0,20],
+           [84,938,509,180,114,56,-4,22],[100,970,510,180,114,56,-4,22]],
+      kill: [[26,0],[38,0.11],[52,0.38],[68,0.46],[84,0.48]],
+      melee: [[34,72,9]] },
+    { id: 't25', side: 'a', n: 69, kind: 'tank', label: '25TH BDE',
+      kf: [[0,1392,540,180,84,62,0,14],[10,1352,541,180,90,68,0,12],[22,1206,544,180,96,72,6,12],
+           [38,1098,547,180,100,68,8,14],[52,1038,549,180,104,64,6,18],[68,1022,551,180,106,60,0,20],
+           [84,1048,552,180,106,58,-4,22],[100,1070,553,180,106,58,-4,22]],
+      kill: [[28,0],[40,0.08],[56,0.26],[72,0.34],[86,0.36]],
+      melee: [[42,78,8]] },
+    { id: '5gm', side: 'a', n: 110, kind: 'tank', label: '5TH GUARDS MECHANISED CORPS',
+      kf: [[0,1540,455,180,104,72,0,18],[10,1520,456,180,108,74,0,16],[22,1430,458,180,112,78,4,15],
+           [38,1288,460,180,116,76,4,15],[52,1130,462,180,120,72,4,18],[68,1042,464,180,122,68,0,20],
+           [84,1062,466,180,122,66,-4,22],[100,1082,467,180,122,66,-4,22]],
+      kill: [[36,0],[52,0.07],[68,0.21],[82,0.27],[92,0.29]],
+      melee: [[60,84,7]] },
+    { id: '2gt', side: 'a', n: 120, kind: 'tank', label: '2ND GUARDS TATSINSKAYA TANK CORPS',
+      kf: [[0,1508,588,180,100,74,0,18],[10,1478,588,180,106,76,0,16],[22,1360,590,180,112,80,4,15],
+           [38,1236,592,180,116,76,6,15],[52,1150,594,180,120,72,4,18],[68,1120,595,180,122,68,0,20],
+           [84,1146,596,180,122,66,-4,22],[100,1168,597,180,122,66,-4,22]],
+      kill: [[30,0],[46,0.06],[62,0.18],[78,0.23],[90,0.25]],
+      melee: [[48,82,8]] },
+
+    /* ---- German II SS-Panzerkorps (Hausser), holding east ---- */
+    /* the reserve company west of Hill 252.2: seven Panzer IVs that met the
+       leading Soviet wave head-on. Seven glyphs, and you can count them. */
+    { id: 'lah7', side: 'b', n: 7, kind: 'tank', label: '7 PANZER IV · RESERVE COMPANY',
+      kf: [[0,676,418,0,34,26,0,6],[10,690,418,0,34,26,0,6],[22,724,418,0,38,28,0,7],
+           [38,762,419,0,40,28,0,8],[52,796,420,0,42,28,0,9],[68,822,420,0,42,28,0,9],
+           [84,846,421,0,42,28,0,9],[92,858,421,0,42,28,0,9],
+           [100,788,420,0,40,28,0,8]],
+      kill: [[28,0],[40,0.14],[60,0.29]],
+      melee: [[30,66,9]] },
+    { id: 'lah', side: 'b', n: 70, kind: 'tank', label: 'LEIBSTANDARTE · HILL 252.2',
+      kf: [[0,650,400,0,150,72,0,14],[10,664,401,0,152,72,0,13],[22,700,403,0,156,74,0,13],
+           [38,742,405,0,160,74,0,14],[52,790,407,0,164,72,0,16],[68,824,408,0,166,70,0,17],
+           [84,856,409,0,166,70,0,17],[92,876,409,0,166,70,0,17],
+           [100,796,411,0,164,72,0,16]],
+      kill: [[30,0],[48,0.06],[70,0.10]],
+      melee: [[30,72,9]] },
+    { id: 'dr', side: 'b', n: 95, kind: 'tank', label: 'DAS REICH · SOUTHERN SHOULDER',
+      kf: [[0,660,560,0,150,80,0,16],[10,674,560,0,152,80,0,15],[22,716,561,0,156,82,0,15],
+           [38,772,562,0,160,80,0,16],[52,830,563,0,162,78,0,17],[68,878,564,0,164,76,0,18],
+           [84,916,565,0,164,74,0,18],[92,936,565,0,164,74,0,18],
+           [100,896,564,0,162,74,0,17]],
+      kill: [[34,0],[54,0.035],[76,0.063]],
+      melee: [[44,80,8]] },
+    /* Totenkopf is north of the Psel, in the bridgehead, attacking away from
+       the corridor — which is why it barely appears in the tank field's story */
+    { id: 'tk', side: 'b', n: 122, kind: 'tank', label: 'TOTENKOPF · PSEL BRIDGEHEAD',
+      kf: [[0,560,70,270,330,50,0,10],[10,566,68,270,334,50,0,10],[22,584,66,270,338,50,0,11],
+           [38,610,64,270,342,50,0,11],[52,634,63,270,344,48,0,12],[68,654,62,270,346,48,0,12],
+           [84,668,62,270,346,48,0,12],[100,678,62,270,346,48,0,12]],
+      kill: [[32,0],[52,0.024],[74,0.041]],
+      melee: [[46,76,6]] },
+  ],
+  /* Tank gunnery is flat and fast: 'shot'. One tracer stands for many rounds. */
+  volleys: [
+    { from: 'lah7', to: 't32', t0: 28, t1: 44, rate: 9, kind: 'shot' },
+    { from: 'lah', to: 't32', t0: 30, t1: 60, rate: 14, kind: 'shot' },
+    { from: 'lah', to: 't31', t0: 30, t1: 60, rate: 14, kind: 'shot' },
+    { from: 'lah', to: 't170', t0: 44, t1: 72, rate: 8, kind: 'shot' },
+    { from: 't32', to: 'lah', t0: 32, t1: 62, rate: 11, kind: 'shot' },
+    { from: 't31', to: 'lah', t0: 32, t1: 62, rate: 11, kind: 'shot' },
+    { from: 't181', to: 'lah', t0: 40, t1: 70, rate: 7, kind: 'shot' },
+    { from: 'dr', to: 't25', t0: 40, t1: 74, rate: 12, kind: 'shot' },
+    { from: 'dr', to: '2gt', t0: 48, t1: 86, rate: 10, kind: 'shot' },
+    { from: 't25', to: 'dr', t0: 42, t1: 76, rate: 9, kind: 'shot' },
+    { from: '2gt', to: 'dr', t0: 50, t1: 86, rate: 8, kind: 'shot' },
+    { from: 'tk', to: 't181', t0: 34, t1: 72, rate: 7, kind: 'shot' },
+    { from: 't181', to: 'tk', t0: 36, t1: 72, rate: 5, kind: 'shot' },
+    { from: 'lah', to: '5gm', t0: 62, t1: 90, rate: 9, kind: 'shot' },
+    { from: '5gm', to: 'lah', t0: 64, t1: 90, rate: 7, kind: 'shot' },
+  ],
+  phases: [
+    { t: 0, body: 'This is the Battle of Prokhorovka in southern Russia on 12 July 1943, the great tank clash of the Kursk campaign. Between the Psel river and the railway the ground narrows to barely 3 kilometres, and Hausser’s SS armoured corps stands directly in the path of a whole Soviet tank army.',
+      cite: '— Zamulin, Demolishing the Myth' },
+    { t: 10, body: 'Rotmistrov has moved his tank army up in the night, and after a short bombardment some 600 Soviet tanks are ordered forward into the corridor at once. It is a headlong charge rather than a manoeuvre, aimed straight at the German line.',
+      cite: '— Zamulin · Frieser, Germany and the Second World War VIII' },
+    { t: 22, body: 'The 29th Tank Corps comes over the crest of Hill 252.2 at full speed and pours down the forward slope, where a single German reserve company of 7 Panzer IVs stands waiting. Its crews begin killing T-34s as fast as they can load.',
+      cite: '— Frieser · Wheatley, Journal of Intelligence History' },
+    { t: 38, body: 'At the bottom of the slope the charge runs into a 6 metre deep anti-tank ditch the Soviets had dug themselves and never marked on their own maps. The 31st and 32nd Brigades pile into it under fire, tank upon tank, while the German gunners keep working.',
+      cite: '— Wheatley, A visual examination of the battle of Prokhorovka' },
+    { t: 52, body: 'Hill 252.2 and the Oktyabrskiy farm change hands all morning as the 18th Tank Corps presses along the river to turn the German flank. But Totenkopf’s bridgehead across the Psel holds firm, and the corridor stays shut.',
+      cite: '— Zamulin, Demolishing the Myth' },
+    { t: 68, body: 'On the southern shoulder Das Reich holds its ground against the Tatsinskaya Corps, and around Hill 241.6 the heavy Tigers duel at ranges the T-34s cannot answer. Nowhere on this field does the Soviet weight of numbers find room to count.',
+      cite: '— Wheatley · Zamulin' },
+    { t: 84, body: 'By evening the attack is spent, with 359 Soviet tanks knocked out against about 20 German losses, yet the corridor never opens. Within days the whole German offensive is called off, which is why a shattered charge is remembered as a Soviet victory.',
+      cite: '— The Tank Museum · Frieser · Zamulin' },
+  ],
+};
+</script>
+<script src="../engine.js?v=5591be0"></script>
+</body>
+</html>

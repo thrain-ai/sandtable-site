@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sandtable — Midway, 1942</title>
+<meta name="description" content="The Battle of Midway re-enacted from above — four Japanese carriers against three American, every ship a hull, every aircraft a dart with a contrail.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="SANDTABLE">
+<meta property="og:title" content="Sandtable — Midway, 1942">
+<meta property="og:description" content="The Battle of Midway re-enacted from above — four Japanese carriers against three American, every ship a hull, every aircraft a dart with a contrail.">
+<meta property="og:url" content="https://sandtable.thrain.ai/midway/">
+<meta property="og:image" content="https://sandtable.thrain.ai/midway/og.jpg">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://sandtable.thrain.ai/midway/og.jpg">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
+<link rel="stylesheet" href="../style.css?v=5591be0">
+</head>
+<body>
+
+<canvas id="field" aria-label="Animated top-down re-enactment of the Battle of Midway"></canvas>
+
+<div class="hud" id="masthead">
+  <a class="crumb" href="../">&larr; Sandtable</a>
+  <h1 class="sr-only">Midway &mdash; 4 June 1942, Central Pacific</h1>
+</div>
+
+<div class="hud" id="scorestack">
+  <div id="muster">
+    <div class="mhead">Ships lost</div>
+    <div class="mrow a"><i></i><span>United States</span><b id="fallenA">0</b><em>/ 25</em></div>
+    <div class="mrow b"><i></i><span>Japan</span><b id="fallenB">0</b><em>/ 20</em></div>
+  </div>
+  <div id="aftermath">
+    <div class="ahead"><span>Summary</span><button id="afttoggle" aria-label="Minimize summary">&minus;</button></div>
+    <table class="tally">
+      <tr><th></th><th>Ships</th><th>Aircraft</th><th>Dead</th></tr>
+      <tr class="a"><td>United States</td><td><b>2</b></td><td>~145</td><td>~300</td></tr>
+      <tr class="b"><td>Japan</td><td><b>5</b></td><td>~290</td><td>~2,500+</td></tr>
+    </table>
+    <div class="sources">Sources &middot; <a href="https://www.history.navy.mil/browse-by-topic/wars-conflicts-and-operations/world-war-ii/1942/midway.html" target="_blank" rel="noopener">NHHC</a> &middot; <a href="http://www.combinedfleet.com" target="_blank" rel="noopener">Combined Fleet</a></div>
+    <button id="replaybtn">&#8635; Replay</button>
+  </div>
+</div>
+
+<div class="hud" id="narration">
+  <p id="phasebody"></p>
+  <div class="cite" id="phasecite"></div>
+</div>
+
+<div class="hud" id="compass">
+  <div>N &uarr;</div>
+  <div id="scalerow">
+    <button id="zout" aria-label="Zoom out">&minus;</button>
+    <div id="kmbar">50 km</div>
+    <button id="zin" aria-label="Zoom in">+</button>
+  </div>
+</div>
+
+<div class="hud" id="console">
+  <button id="rwbtn" aria-label="Rewind">&#171;</button>
+  <button id="playbtn" aria-label="Play or pause">&#9654;</button>
+  <button id="ffbtn" aria-label="Fast forward">&#187;</button>
+  <div id="timeline" role="slider" aria-label="Battle timeline" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0">
+    <div class="rail"></div>
+    <div class="fill" id="tlfill"></div>
+  </div>
+  <div id="clock">0:00</div>
+  <button id="labelbtn" aria-label="Toggle unit labels" title="Labels (L)"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M1.5 12.5 L6 8"/><rect x="6" y="1.5" width="6.5" height="6.5"/></svg></button>
+</div>
+
+<script>
+window.BATTLE = {
+  field: { w: 1600, h: 900, kmUnits: 3.68 },   // ~350 km of open Pacific
+  scale: 1,
+  tEnd: 100,
+  hook: 'Japan lost all 4 carriers in one morning.',
+  sides: {
+    a: { name: 'UNITED STATES', total: 25, pal: ['#256abf', '#3987e5', '#5598e7', '#86b6ef', '#0aa2a9'] },
+    b: { name: 'JAPAN', total: 20, pal: ['#a03d18', '#C14E24', '#d96a3a', '#e8875a', '#f0b06a'] },
+  },
+  terrain: {
+    base: -0.24, rise: 0, noise: 0.05, tropic: true,
+    /* Midway is an ATOLL, not a hill: a flat reef shelf (flat-top blob),
+       a lagoon bowl, two sand islands on the south rim, and low rim
+       shoals whose crests break the surf line. */
+    blobs: [
+      { x: 1200, y: 652, r: 62, h: 0.226, flat: 0.55 },   // reef shelf, just awash
+      { x: 1204, y: 642, r: 30, h: -0.05, flat: 0.55 },   // the lagoon, inside the ring
+      { x: 1178, y: 676, r: 24, h: 0.058, flat: 0.5 },    // Sand Island (garrison)
+      { x: 1216, y: 682, r: 16, h: 0.05, flat: 0.45 },    // Eastern Island
+      // rim shoals — the surf breaks where they crest
+      { x: 1200, y: 614, r: 9, h: 0.010, flat: 0.3 },
+      { x: 1228, y: 620, r: 8, h: 0.009, flat: 0.3 },
+      { x: 1244, y: 646, r: 8, h: 0.010, flat: 0.3 },
+      { x: 1242, y: 670, r: 8, h: 0.009, flat: 0.3 },
+      { x: 1172, y: 620, r: 8, h: 0.009, flat: 0.3 },
+      { x: 1158, y: 644, r: 9, h: 0.010, flat: 0.3 },
+      /* Kure Atoll — 91 km WNW of Midway (335 units at this scale), the
+         real next atoll in the chain; audited against the chart 2026-07-26 */
+      { x: 891, y: 524, r: 20, h: 0.226, flat: 0.5 },    // reef ring, just awash
+      { x: 893, y: 521, r: 9, h: -0.05, flat: 0.5 },     // its small lagoon
+      { x: 884, y: 530, r: 5, h: 0.05, flat: 0.45 },     // Green Island
+      { x: 899, y: 514, r: 5, h: 0.010, flat: 0.3 },
+      { x: 882, y: 517, r: 5, h: 0.009, flat: 0.3 },
+    ],
+    river: null,
+    names: [
+      { t: 'MIDWAY ATOLL', x: 1200, y: 596 },
+      { t: 'KURE ATOLL', x: 891, y: 502, c: 'rgba(216,211,200,0.22)' },
+      { t: 'TO PEARL HARBOR →', x: 1320, y: 538 },
+    ],
+    marks: [],
+    title: { name: 'Midway', sub: '4 June 1942', x: 560, y: 660 },
+  },
+  /* One hull = one ship, one dart = one plane. Kido Butai: 4 carriers +
+     16 escorts. US: TF16 (Enterprise, Hornet + 15) NE, TF17 (Yorktown + 7).
+     Aircraft units carry real strike counts; score:false keeps them out of
+     the ships-lost scoreboard (losses reported in the aftermath).
+     T=100 ≈ 04:30–18:00, June 4. Angles: 0=E, 90=S, 180=W, 270=N. */
+  units: [
+    { id: 'jcv', side: 'b', n: 4, kind: 'ship', hull: 1.6, deathOrder: 'front', label: 'NAGUMO · 4 CARRIERS',
+      kf: [[0,280,186,135,48,120,0,8],[24,536,338,135,56,120,0,8],[38,568,330,60,64,120,0,9.6],
+           [52,608,322,45,72,120,0,9.6],[66,640,298,20,80,120,0,9.6],[84,680,274,0,88,120,0,9.6],
+           [100,688,270,0,88,120,0,9.6]],
+      struck: [[52,0],[58,0.75],[84.5,0.75],[87,1]],
+      melee: [[44,58,5]] },
+    { id: 'jesc', side: 'b', n: 16, kind: 'ship', label: 'BATTLESHIPS & SCREEN',
+      kf: [[0,248,226,135,176,192,0,20.8],[24,504,378,135,192,192,0,20.8],[38,536,370,60,200,192,0,20.8],
+           [52,576,362,45,208,192,0,20.8],[66,608,338,20,208,192,0,20.8],[84,576,290,315,208,192,0,20.8],
+           [92,400,186,315,208,192,0,22.4],[100,-180,40,315,208,192,0,22.4]],
+      melee: [] },
+    { id: 'ucv16', side: 'a', n: 2, kind: 'ship', hull: 1.6, label: 'SPRUANCE · ENTERPRISE & HORNET',
+      kf: [[0,1176,202,225,40,72,0,6.4],[24,1064,266,225,40,72,0,6.4],[38,1008,298,225,44,72,0,6.4],
+           [52,968,322,240,48,72,0,6.4],[70,944,322,255,48,72,0,6.4],[84,904,310,270,48,72,0,6.4],
+           [100,864,298,270,48,72,0,6.4]],
+      melee: [] },
+    { id: 'uesc16', side: 'a', n: 15, kind: 'ship', label: 'TF 16 SCREEN',
+      kf: [[0,1208,242,225,176,176,0,19.2],[24,1096,306,225,184,176,0,19.2],[38,1040,338,225,192,176,0,19.2],
+           [52,1000,362,240,192,176,0,19.2],[70,976,362,255,192,176,0,19.2],[84,936,350,270,192,176,0,19.2],
+           [100,896,338,270,192,176,0,19.2]],
+      melee: [] },
+    { id: 'ycv', side: 'a', n: 1, kind: 'ship', hull: 1.6, label: 'FLETCHER · YORKTOWN',
+      kf: [[0,1280,306,225,32,48,0,4.8],[24,1168,354,225,32,48,0,4.8],[38,1104,386,225,32,48,0,4.8],
+           [52,1072,398,240,32,48,0,4.8],[66,1056,402,250,32,48,0,4.8],[100,1056,402,250,32,48,0,4.8]],
+      struck: [[73.5,0],[76.5,1]],
+      melee: [] },
+    { id: 'yesc', side: 'a', n: 7, kind: 'ship', label: 'TF 17 SCREEN',
+      kf: [[0,1304,346,225,136,120,0,16],[24,1200,394,225,140,120,0,16],[38,1136,426,225,144,120,0,16],
+           [52,1104,434,240,144,120,0,16],[66,1088,438,250,144,120,0,16],[100,1088,438,250,144,120,0,16]],
+      melee: [] },
+    { id: 'mgar', side: 'a', n: 18, kind: 'inf', score: false, label: 'MIDWAY GARRISON',
+      kf: [[0,1178,676,270,20,13,0,4],[100,1178,676,270,20,13,0,4]],
+      kill: [[12,0],[20,0.12]],
+      melee: [[12,20,4]] },
+    { id: 'jstrike1', side: 'b', n: 108, kind: 'air', score: false, label: 'MIDWAY STRIKE · 108',
+      kf: [[0,288,202,135,32,32,0,8],[8,320,226,120,96,72,0,9.6],[14,1160,622,120,120,88,0,11.2],
+           [20,1200,650,90,128,96,0,12.8],[26,864,498,300,120,88,0,11.2],[32,568,354,300,48,40,0,8],
+           [52,608,322,45,40,32,0,6.4],[100,640,298,20,40,32,0,6.4]],
+      kill: [[13,0],[20,0.1],[26,0.1],[54,0.55],[86,1]],
+      melee: [[14,20,8]] },
+    { id: 'utorp', side: 'a', n: 41, kind: 'air', score: false, label: 'TORPEDO SQUADRONS · 41',
+      kf: [[0,1152,234,225,32,32,0,6.4],[38,1040,306,225,40,40,0,8],[44,768,330,250,96,64,0,9.6],
+           [50,616,326,260,88,64,0,11.2],[56,632,330,80,80,56,0,11.2],[64,960,326,70,64,48,0,9.6],
+           [100,880,306,270,40,32,0,6.4]],
+      kill: [[45,0],[52,0.75],[56,0.85]],
+      melee: [[46,56,8]] },
+    { id: 'usbd', side: 'a', n: 50, kind: 'air', score: false, label: 'DIVE BOMBERS · 50',
+      kf: [[0,1160,218,225,40,32,0,6.4],[44,1032,294,225,48,40,0,8],[48,880,474,235,104,72,0,9.6],
+           [52,640,362,290,104,72,0,9.6],[56,608,322,300,96,64,0,11.2],[62,800,306,75,88,64,0,9.6],
+           [72,968,318,70,72,48,0,8],[80,880,302,250,80,56,0,9],
+           [84.5,646,276,255,88,60,0,10],[87.5,640,270,70,88,60,0,10],[92,848,300,70,80,56,0,9],
+           [100,984,314,70,64,44,0,8]],
+      kill: [[52,0],[62,0.2],[72,0.35]],
+      melee: [[52,58,8]] },
+    { id: 'jcap', side: 'b', n: 36, kind: 'air', score: false, label: 'ZERO PATROL · 36',
+      kf: [[0,568,306,45,112,88,0,16],[24,560,330,45,120,88,0,17.6],[44,608,346,60,128,96,0,20.8],
+           [52,608,322,45,120,88,0,19.2],[66,648,298,20,120,88,0,17.6],[84,680,278,0,112,80,0,17.6],
+           [92,688,274,0,96,72,0,16],[100,688,272,0,88,64,0,14.4]],
+      kill: [[46,0],[62,0.2],[84,0.36],[92,1]],
+      melee: [[40,60,10],[66,84,6]] },
+    { id: 'jstrike2', side: 'b', n: 40, kind: 'air', score: false, label: 'HIRYŪ’S COUNTERSTRIKE · 40',
+      kf: [[0,640,298,20,24,24,0,6.4],[66,656,302,60,48,40,0,8],[70,880,362,75,88,64,0,9.6],
+           [74,1056,398,80,96,64,0,11.2],[78,1064,402,80,88,64,0,11.2],[84,800,330,280,72,56,0,9.6],
+           [100,704,282,280,48,40,0,8]],
+      kill: [[71,0],[78,0.5],[84,0.6],[92,1]],
+      melee: [[72,78,8]] },
+  ],
+  volleys: [
+    { from: 'jstrike1', to: 'mgar', t0: 14, t1: 20, rate: 22, kind: 'shot' },
+    { from: 'mgar', to: 'jstrike1', t0: 13, t1: 20, rate: 18, kind: 'flak' },
+    { from: 'jcap', to: 'utorp', t0: 46, t1: 56, rate: 12, kind: 'flak' },
+    { from: 'jesc', to: 'utorp', t0: 45, t1: 55, rate: 24, kind: 'flak' },
+    { from: 'utorp', to: 'jcv', t0: 48, t1: 55, rate: 5, kind: 'shot' },
+    { from: 'usbd', to: 'jcv', t0: 52, t1: 57, rate: 12, kind: 'shot' },
+    { from: 'jesc', to: 'usbd', t0: 52, t1: 60, rate: 22, kind: 'flak' },
+    { from: 'jcv', to: 'usbd', t0: 52, t1: 58, rate: 10, kind: 'flak' },
+    { from: 'jstrike2', to: 'ycv', t0: 72, t1: 78, rate: 10, kind: 'shot' },
+    { from: 'yesc', to: 'jstrike2', t0: 71, t1: 78, rate: 26, kind: 'flak' },
+    { from: 'ycv', to: 'jstrike2', t0: 71, t1: 78, rate: 12, kind: 'flak' },
+    { from: 'usbd', to: 'jcv', t0: 84, t1: 86.2, rate: 18, kind: 'shot' },
+    { from: 'jesc', to: 'usbd', t0: 84, t1: 87, rate: 16, kind: 'flak' },
+  ],
+  phases: [
+    { t: 0, body: 'This is the Battle of Midway in the central Pacific on 4 June 1942, where Nagumo steams toward the island with 4 aircraft carriers, not knowing American codebreakers have read his whole plan. Spruance and Fletcher wait in ambush to the northeast with 3 carriers of their own.',
+      cite: '— Parshall & Tully, Shattered Sword · NHHC' },
+    { t: 8, body: 'At dawn a strike of 108 Japanese aircraft sets the island burning, but the runways survive and the garrison keeps fighting. So the strike leader radios back the message that will doom a fleet, a second attack is needed.',
+      cite: '— NHHC Combat Narrative' },
+    { t: 24, body: 'While his crews rearm for a second try, Nagumo learns a scout plane has found American ships and a carrier among them. Now every bomb and fuel line crowding his hangar decks must be swapped again, and swapped while under attack.',
+      cite: '— Parshall & Tully, Shattered Sword' },
+    { t: 38, body: '41 American torpedo planes attack at wave height without fighter cover, and 35 of them are shot down without a single hit. But their sacrifice pulls every Japanese Zero down to the sea, and leaves the sky above Nagumo’s fleet empty.',
+      cite: '— NHHC · Morison, vol. IV' },
+    { t: 52, body: 'At 10:22 the American dive bombers arrive high over a fleet with nothing left to stop them, and 5 minutes later Kaga, Sōryū and Akagi are burning from end to end. Their hangars are packed with the fuel and bombs of Nagumo’s hesitation.',
+      cite: '— Parshall & Tully, Shattered Sword' },
+    { t: 66, body: 'Hiryū, the last carrier afloat, launches everything she has left, and her strike follows the retreating Americans home to Fletcher’s flagship. 3 bombs and 2 torpedoes leave the Yorktown abandoned and finally lost, the price of the morning’s victory.',
+      cite: '— NHHC · Britannica' },
+    { t: 80, body: 'At 17:00 American bombers find Hiryū at last, and by morning all 4 of Nagumo’s carriers are on the bottom of the Pacific with every plane they carried. The war in the Pacific has turned in the space of one morning.',
+      cite: '— NHHC · Parshall & Tully, Shattered Sword' },
+  ],
+};
+</script>
+<script src="../engine.js?v=5591be0"></script>
+</body>
+</html>

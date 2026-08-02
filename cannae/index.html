@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sandtable — Cannae, 216 BC</title>
+<meta name="description" content="The Battle of Cannae re-enacted from above by 6,820 murmuration motes — one mote for every twenty men, choreographed from Polybius and Livy.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="SANDTABLE">
+<meta property="og:title" content="Sandtable — Cannae, 216 BC">
+<meta property="og:description" content="The Battle of Cannae re-enacted from above by 6,820 murmuration motes — one mote for every twenty men, choreographed from Polybius and Livy.">
+<meta property="og:url" content="https://sandtable.thrain.ai/cannae/">
+<meta property="og:image" content="https://sandtable.thrain.ai/cannae/og.jpg">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://sandtable.thrain.ai/cannae/og.jpg">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
+<link rel="stylesheet" href="../style.css?v=5591be0">
+</head>
+<body>
+
+<canvas id="field" aria-label="Animated top-down re-enactment of the Battle of Cannae"></canvas>
+
+<div class="hud" id="masthead">
+  <a class="crumb" href="../">&larr; Sandtable</a>
+  <h1 class="sr-only">Cannae &mdash; 2 August 216 BC, River Aufidus, Apulia</h1>
+</div>
+
+<div class="hud" id="scorestack">
+  <div id="muster">
+    <div class="mhead">Fallen</div>
+    <div class="mrow a"><i></i><span>Rome</span><b id="fallenA">0</b><em>/ 86,400</em></div>
+    <div class="mrow b"><i></i><span>Carthage</span><b id="fallenB">0</b><em>/ 50,000</em></div>
+  </div>
+  <div id="aftermath">
+    <div class="ahead"><span>Summary</span><button id="afttoggle" aria-label="Minimize summary">&minus;</button></div>
+    <table class="tally">
+      <tr><th></th><th>Dead</th><th>Captured</th><th>Escaped</th></tr>
+      <tr class="a"><td>Rome</td><td><b>48,200</b></td><td>19,300</td><td>~14,000</td></tr>
+      <tr class="b"><td>Carthage</td><td><b>~5,700</b></td><td>&mdash;</td><td>&mdash;</td></tr>
+    </table>
+    <div class="sources">Sources &middot; <a href="https://penelope.uchicago.edu/Thayer/E/Roman/Texts/Polybius/3*.html" target="_blank" rel="noopener">Polybius III</a> &middot; <a href="https://www.perseus.tufts.edu/hopper/text?doc=Perseus%3Atext%3A1999.02.0141%3Abook%3D22" target="_blank" rel="noopener">Livy XXII</a></div>
+    <button id="replaybtn">&#8635; Replay</button>
+  </div>
+</div>
+
+<div class="hud" id="narration">
+  <p id="phasebody"></p>
+  <div class="cite" id="phasecite"></div>
+</div>
+
+<div class="hud" id="compass">
+  <div>N &uarr;</div>
+  <div id="scalerow">
+    <button id="zout" aria-label="Zoom out">&minus;</button>
+    <div id="kmbar">1 km</div>
+    <button id="zin" aria-label="Zoom in">+</button>
+  </div>
+</div>
+
+<div class="hud" id="console">
+  <button id="rwbtn" aria-label="Rewind">&#171;</button>
+  <button id="playbtn" aria-label="Play or pause">&#9654;</button>
+  <button id="ffbtn" aria-label="Fast forward">&#187;</button>
+  <div id="timeline" role="slider" aria-label="Battle timeline" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0">
+    <div class="rail"></div>
+    <div class="fill" id="tlfill"></div>
+  </div>
+  <div id="clock">0:00</div>
+  <button id="labelbtn" aria-label="Toggle unit labels" title="Labels (L)"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M1.5 12.5 L6 8"/><rect x="6" y="1.5" width="6.5" height="6.5"/></svg></button>
+</div>
+
+<script>
+window.BATTLE = {
+  field: { w: 1600, h: 900, kmUnits: 400 },
+  scale: 20,
+  tEnd: 100,
+  hook: '70,000 Romans walked into Hannibal’s trap.',
+  sides: {
+    a: { name: 'ROME', total: 86400, pal: ['#256abf', '#3987e5', '#5598e7', '#86b6ef', '#0aa2a9'] },
+    b: { name: 'CARTHAGE', total: 50000, pal: ['#a03d18', '#C14E24', '#d96a3a', '#e8875a', '#f0b06a'] },
+  },
+  terrain: {
+    base: 0.05, rise: 0.22, noise: 0.10, floor: 0.02,
+    blobs: [
+      { x: 1500, y: 730, r: 190, h: 0.85 },   // the hill and citadel of Cannae
+      { x: 1240, y: 110, r: 340, h: 0.34 },
+      { x: 820, y: 30, r: 420, h: 0.28 },
+      { x: 280, y: 80, r: 380, h: 0.30 },
+      { x: 60, y: 620, r: 260, h: 0.20 },
+      { x: 1560, y: 420, r: 240, h: 0.30 },
+    ],
+    river: { base: 868, halfW: 26 },
+    names: [
+      { t: 'AUFIDUS', x: 56, y: 866, c: 'rgba(120,170,225,0.30)', align: 'left' },
+    ],
+    marks: [{ x: 1496, y: 890 }],   // the citadel hill — south bank, audited
+    title: { name: 'Cannae', sub: '2 August 216 BC', x: 1490, y: 648 },
+  },
+  /* keyframes: [t, cx, cy, angDeg, w, d, bow, scatter] — from Polybius 3.113–117 */
+  units: [
+    { id: 'rinf', side: 'a', n: 3250, kind: 'inf', label: 'SERVILIUS · THE LEGIONS',
+      kf: [[0,240,450,0,640,340,0,90],[12,620,450,0,470,150,0,8],[26,700,450,0,450,160,0,8],
+           [40,790,450,0,410,175,0,8],[56,880,450,0,330,215,0,8],[68,925,450,0,285,235,0,8],
+           [80,945,450,0,250,250,0,8],[100,950,450,0,205,210,0,8]],
+      kill: [[40,0],[56,0.04],[68,0.09],[80,0.28],[92,0.5],[100,0.58]],
+      melee: [[40,100,6]] },
+    { id: 'rvel', side: 'a', n: 750, kind: 'inf', label: 'VELITES',
+      kf: [[0,300,450,0,500,220,0,80],[12,770,450,0,460,45,0,10],[21,884,450,0,440,40,0,14],
+           [26,610,450,0,420,55,0,10],[40,700,450,0,380,60,0,10],[56,800,450,0,300,70,0,10],
+           [68,860,450,0,260,80,0,10],[80,900,450,0,230,90,0,10],[88,890,462,180,210,90,0,12],
+           [93,700,560,190,170,80,0,20],[100,-140,640,190,220,80,0,26]],
+      kill: [[16,0],[26,0.03],[50,0.06],[68,0.12],[100,0.58]],
+      melee: [[16,24,8],[68,100,6]] },
+    { id: 'rcav', side: 'a', n: 120, kind: 'cav', label: 'PAULLUS · ROMAN HORSE',
+      kf: [[0,300,690,0,200,120,0,40],[12,620,772,0,100,70,0,10],[26,668,776,0,100,70,0,10],
+           [30,715,778,0,95,75,0,14],[38,640,786,0,100,80,0,20],[44,240,790,0,90,70,0,22],
+           [50,-180,800,0,90,60,0,24]],
+      kill: [[26,0],[30,0.15],[38,0.55],[44,0.85]],
+      melee: [[26,40,14]] },
+    { id: 'acav', side: 'a', n: 200, kind: 'cav', label: 'VARRO · ALLIED HORSE',
+      kf: [[0,300,210,0,240,120,0,40],[12,620,165,0,230,85,0,12],[20,660,160,0,225,85,0,14],
+           [30,640,168,0,225,85,0,14],[40,665,162,0,220,85,0,14],[50,648,166,0,220,85,0,14],
+           [56,655,163,0,215,85,0,14],[62,520,125,0,220,90,0,22],[68,260,120,0,200,80,0,24],
+           [74,-180,50,0,240,80,0,30]],
+      kill: [[56,0],[62,0.25],[68,0.3]],
+      melee: [[14,62,10]] },
+    { id: 'cctr', side: 'b', n: 1400, kind: 'inf', label: 'HANNIBAL & MAGO · GAULS AND SPANIARDS',
+      kf: [[0,1220,450,180,560,240,0,50],[12,1000,450,180,450,95,0,8],[26,935,450,180,440,90,72,8],
+           [40,895,450,180,430,95,26,8],[50,930,450,180,450,100,-48,8],[56,965,450,180,470,105,-92,8],
+           [68,1005,450,180,490,110,-115,8],[80,1010,450,180,445,115,-85,8],[100,990,450,180,365,120,-55,8]],
+      kill: [[40,0],[56,0.05],[80,0.12],[100,0.17]],
+      melee: [[40,100,6]] },
+    { id: 'cafrN', side: 'b', n: 300, kind: 'inf', label: 'AFRICANS',
+      kf: [[0,1240,240,180,200,130,0,50],[12,1055,238,180,145,92,0,8],[26,1015,242,180,145,92,0,8],
+           [40,985,248,180,145,92,0,8],[56,948,268,135,150,92,0,8],[62,928,302,90,160,88,0,8],
+           [68,924,332,90,165,85,0,8],[80,928,362,90,160,82,0,8],[100,933,392,90,150,80,0,8]],
+      kill: [[62,0],[100,0.035]],
+      melee: [[60,100,6]] },
+    { id: 'cafrS', side: 'b', n: 300, kind: 'inf', label: 'AFRICANS',
+      kf: [[0,1240,660,180,200,130,0,50],[12,1055,662,180,145,92,0,8],[26,1015,658,180,145,92,0,8],
+           [40,985,652,180,145,92,0,8],[56,948,632,225,150,92,0,8],[62,928,598,270,160,88,0,8],
+           [68,924,568,270,165,85,0,8],[80,928,538,270,160,82,0,8],[100,933,508,270,150,80,0,8]],
+      kill: [[62,0],[100,0.035]],
+      melee: [[60,100,6]] },
+    { id: 'chcav', side: 'b', n: 325, kind: 'cav', label: 'HASDRUBAL · HEAVY HORSE',
+      kf: [[0,1260,720,180,160,120,0,50],[12,985,765,180,130,80,0,12],[26,850,768,180,120,80,0,12],
+           [30,745,772,180,115,85,0,16],[38,660,775,180,120,85,0,16],[44,560,770,190,120,80,0,14],
+           [48,415,665,230,170,80,0,14],[52,375,470,268,170,80,0,14],[56,430,255,300,180,85,0,14],
+           [60,545,175,340,185,85,0,14],[64,560,195,0,190,85,0,14],[70,585,300,45,200,90,0,12],
+           [76,690,430,10,240,95,0,10],[82,775,450,0,250,95,0,10],[100,815,450,0,235,95,0,10]],
+      kill: [[26,0],[40,0.03],[68,0.05],[100,0.06]],
+      melee: [[26,40,14],[56,64,10],[74,100,6]] },
+    { id: 'cncav', side: 'b', n: 175, kind: 'cav', label: 'NUMIDIANS',
+      kf: [[0,1260,140,180,240,110,0,50],[12,950,158,180,210,85,0,24],[20,845,150,180,205,85,0,26],
+           [28,790,168,180,205,85,0,26],[36,855,152,180,205,85,0,26],[44,800,165,180,205,85,0,26],
+           [52,845,155,180,205,85,0,26],[58,760,140,180,210,85,0,26],[64,470,95,190,230,85,0,28],
+           [72,-180,40,190,240,80,0,30]],
+      kill: [[26,0],[56,0.04]],
+      melee: [[14,62,10]] },
+  ],
+  /* the skirmish: velite javelins against Hannibal's Balearic slingers */
+  volleys: [
+    { from: 'rvel', to: 'cctr', t0: 18, t1: 24, rate: 14, kind: 'javelin' },
+    { from: 'cctr', to: 'rvel', t0: 18, t1: 24, rate: 10, kind: 'javelin' },
+  ],
+  phases: [
+    { t: 0, body: 'This is the Battle of Cannae in southern Italy in 216 BC, where Rome has raised 86,400 men, the largest army in its history, to crush Hannibal’s invaders. Servilius packs 8 legions into one deep block while Hannibal stretches his Gauls and Spaniards into a thin waiting line.',
+      cite: '— Polybius 3.113 · Livy 22.45–46' },
+    { t: 12, body: 'The velites open the morning with javelins as Hannibal walks his centre forward until it bulges toward the Romans in a crescent. He is daring the legions to hit him in the middle, and the sun climbs into Roman eyes as the lines come together.',
+      cite: '— Polybius 3.113–114 · Livy 22.46' },
+    { t: 26, body: 'Down by the river Hasdrubal leads 6,500 heavy horsemen into Paullus and his Roman cavalry, and the fight becomes a standing crush with no room to wheel or run. On the far wing the Numidians swirl around the allied horse and pin it where it stands.',
+      cite: '— Polybius 3.115' },
+    { t: 40, body: 'Servilius and the legions bite into the bulging centre and shove it back step by step, packing themselves tighter as the crescent bends inward around them. To the Romans it feels like winning, while 70,000 men walk deeper into Hannibal’s trap.',
+      cite: '— Polybius 3.115' },
+    { t: 56, body: 'Hasdrubal does not chase the beaten Roman riders. Instead he wheels his squadrons the whole width of the field behind the Roman army and falls on Varro’s allied cavalry from 2 sides at once, sweeping the last of Rome’s horsemen off the battlefield.',
+      cite: '— Polybius 3.116' },
+    { t: 68, body: 'Now Hannibal’s African veterans, fresh all morning, wheel inward against both ends of the Roman line as Hasdrubal brings his horsemen back to slam the door at the rear. In a few minutes Servilius has no flanks, no rear, and nowhere left to go.',
+      cite: '— Polybius 3.116' },
+    { t: 80, body: 'Packed too tightly even to raise their shields, the outer ranks are cut down where they stand as the ring grinds inward until nightfall. Around 48,200 Romans die in a single afternoon, and every encircling army since has tried to do what Hannibal did at Cannae.',
+      cite: '— Polybius 3.117 · Livy 22.49' },
+  ],
+};
+</script>
+<script src="../engine.js?v=5591be0"></script>
+</body>
+</html>

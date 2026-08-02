@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sandtable — Trafalgar, 1805</title>
+<meta name="description" content="The Battle of Trafalgar re-enacted from above — Nelson's two columns break the Franco-Spanish line, all 60 ships of the line as living hulls.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="SANDTABLE">
+<meta property="og:title" content="Sandtable — Trafalgar, 1805">
+<meta property="og:description" content="The Battle of Trafalgar re-enacted from above — Nelson's two columns break the Franco-Spanish line, all 60 ships of the line as living hulls.">
+<meta property="og:url" content="https://sandtable.thrain.ai/trafalgar/">
+<meta property="og:image" content="https://sandtable.thrain.ai/trafalgar/og.jpg">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://sandtable.thrain.ai/trafalgar/og.jpg">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
+<link rel="stylesheet" href="../style.css?v=5591be0">
+</head>
+<body>
+
+<canvas id="field" aria-label="Animated top-down re-enactment of the Battle of Trafalgar"></canvas>
+
+<div class="hud" id="masthead">
+  <a class="crumb" href="../">&larr; Sandtable</a>
+  <h1 class="sr-only">Trafalgar &mdash; 21 October 1805, off Cape Trafalgar, Spain</h1>
+</div>
+
+<div class="hud" id="scorestack">
+  <div id="muster">
+    <div class="mhead">Ships lost</div>
+    <div class="mrow a"><i></i><span>Britain</span><b id="fallenA">0</b><em>/ 27</em></div>
+    <div class="mrow b"><i></i><span>France &amp; Spain</span><b id="fallenB">0</b><em>/ 33</em></div>
+  </div>
+  <div id="aftermath">
+    <div class="ahead"><span>Summary</span><button id="afttoggle" aria-label="Minimize summary">&minus;</button></div>
+    <table class="tally">
+      <tr><th></th><th>Killed</th><th>Wounded</th><th>Ships lost</th></tr>
+      <tr class="a"><td>Britain</td><td>449</td><td>1,217</td><td><b>0</b></td></tr>
+      <tr class="b"><td>France &amp; Spain</td><td>~4,400</td><td>2,545</td><td><b>18</b></td></tr>
+    </table>
+    <div class="sources">Sources &middot; <a href="https://www.thegazette.co.uk/London/issue/15858/page/1" target="_blank" rel="noopener">Collingwood&rsquo;s dispatch</a> &middot; <a href="https://www.britannica.com/event/Battle-of-Trafalgar" target="_blank" rel="noopener">Britannica</a></div>
+    <button id="replaybtn">&#8635; Replay</button>
+  </div>
+</div>
+
+<div class="hud" id="narration">
+  <p id="phasebody"></p>
+  <div class="cite" id="phasecite"></div>
+</div>
+
+<div class="hud" id="compass">
+  <div>N &uarr;</div>
+  <div id="scalerow">
+    <button id="zout" aria-label="Zoom out">&minus;</button>
+    <div id="kmbar">1 km</div>
+    <button id="zin" aria-label="Zoom in">+</button>
+  </div>
+</div>
+
+<div class="hud" id="console">
+  <button id="rwbtn" aria-label="Rewind">&#171;</button>
+  <button id="playbtn" aria-label="Play or pause">&#9654;</button>
+  <button id="ffbtn" aria-label="Fast forward">&#187;</button>
+  <div id="timeline" role="slider" aria-label="Battle timeline" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0">
+    <div class="rail"></div>
+    <div class="fill" id="tlfill"></div>
+  </div>
+  <div id="clock">0:00</div>
+  <button id="labelbtn" aria-label="Toggle unit labels" title="Labels (L)"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M1.5 12.5 L6 8"/><rect x="6" y="1.5" width="6.5" height="6.5"/></svg></button>
+</div>
+
+<script>
+window.BATTLE = {
+  field: { w: 1600, h: 900, kmUnits: 160 },   // ~10 km of open water
+  scale: 10,
+  tEnd: 100,
+  hook: 'Nelson took 18 ships and never lost one.',
+  sides: {
+    a: { name: 'BRITAIN', total: 17000, pal: ['#256abf', '#3987e5', '#5598e7', '#86b6ef', '#0aa2a9'] },
+    b: { name: 'FRANCE & SPAIN', total: 30000, pal: ['#a03d18', '#C14E24', '#d96a3a', '#e8875a', '#f0b06a'] },
+  },
+  terrain: {
+    /* the battle was joined ~12 nm WNW of Cape Trafalgar — at this
+       table's scale the cape lies far beyond even the zoomed-out world,
+       so the honest map is open Atlantic; the coast is a BEARING, not
+       terrain. (A cone "cape" once stood in this corner.) */
+    base: -0.24, rise: 0, noise: 0.05,
+    blobs: [],
+    river: null,
+    names: [
+      { t: 'CAPE TRAFALGAR · 12 NM →', x: 1430, y: 812 },
+      { t: 'TO CÁDIZ →', x: 1480, y: 70 },
+    ],
+    marks: [],
+    title: { name: 'Trafalgar', sub: '21 October 1805', x: 330, y: 84 },
+  },
+  /* Fleets: one entity = one ship, at the real counts — Nelson's 12 and
+     Collingwood's 15 against a combined 33. Sea battles count losses in
+     ships: `struck` schedules hulls striking their colours (18 prizes,
+     all in the centre and rear; Britain lost none). The human cost —
+     449 v ~4,400 dead — is reported in the aftermath.
+     Angles: 270 = due north. */
+  units: [
+    { id: 'bw', side: 'a', n: 12, kind: 'ship', crew: 7500, label: 'NELSON · 12 SHIPS',
+      kf: [[0,300,410,0,36,400,0,30],[14,420,408,0,34,380,0,6],[30,700,405,0,34,360,0,6],
+           [42,980,405,0,36,330,0,6],[50,1130,420,10,60,280,0,8],[62,1180,440,20,150,200,0,10],
+           [74,1180,450,20,190,190,0,10],[100,1170,460,15,210,190,0,10]],
+      melee: [[42,74,10],[74,100,5]] },
+    { id: 'bl', side: 'a', n: 15, kind: 'ship', crew: 9500, label: 'COLLINGWOOD · 15 SHIPS',
+      kf: [[0,240,665,0,36,420,0,30],[14,380,662,0,34,400,0,6],[30,660,658,0,34,380,0,6],
+           [38,940,652,0,36,350,0,6],[46,1120,660,10,70,300,0,8],[58,1170,680,20,160,220,0,10],
+           [74,1175,690,20,200,200,0,10],[100,1165,700,15,220,200,0,10]],
+      melee: [[38,74,10],[74,100,5]] },
+    { id: 'av', side: 'b', n: 10, kind: 'ship', crew: 9000, label: 'DUMANOIR · VAN · 10 SHIPS',
+      kf: [[0,1075,240,262,60,210,0,20],[14,1082,225,262,58,210,0,8],[30,1088,205,262,58,210,0,8],
+           [42,1092,185,262,58,210,0,8],[56,1096,150,262,58,210,0,8],[64,1060,120,240,70,210,0,10],
+           [70,990,160,185,80,200,0,10],[78,950,320,120,70,210,0,10],[86,930,520,100,70,210,0,10],
+           [93,905,660,140,76,210,0,11],[100,845,1090,165,78,210,0,12]],
+      melee: [[74,90,6]] },
+    { id: 'ac', side: 'b', n: 12, kind: 'ship', crew: 11000, deathOrder: 'rear', label: 'VILLENEUVE · CENTRE · 12 SHIPS',
+      kf: [[0,1120,470,268,62,230,0,20],[14,1124,455,268,60,230,0,8],[30,1128,440,268,60,230,0,8],
+           [42,1130,430,268,60,230,0,8],[50,1140,435,268,80,220,0,10],[62,1160,450,265,130,210,0,12],
+           [74,1165,455,265,170,200,0,12],[100,1160,460,265,190,195,0,12]],
+      struck: [[56,0],[70,0.35],[84,0.6],[100,0.75]],
+      melee: [[42,100,9]] },
+    { id: 'ar', side: 'b', n: 11, kind: 'ship', crew: 10000, deathOrder: 'front', label: 'GRAVINA · REAR · 11 SHIPS',
+      kf: [[0,1095,720,275,62,220,0,20],[14,1098,710,275,60,220,0,8],[30,1100,700,275,60,220,0,8],
+           [42,1102,692,275,60,220,0,8],[46,1108,690,275,70,215,0,10],[58,1150,690,272,140,210,0,12],
+           [74,1155,695,272,190,200,0,12],[88,1152,698,272,205,197,0,12],
+           [100,1500,624,340,180,190,0,14]],
+      struck: [[58,0],[72,0.35],[86,0.6],[100,0.82]],
+      melee: [[46,100,9]] },
+  ],
+  /* broadsides: the allies rake the silent approach; Britain answers only
+     after breaking the line — then never stops */
+  volleys: [
+    { from: 'ac', to: 'bw', t0: 26, t1: 42, rate: 4, kind: 'shot' },
+    { from: 'ar', to: 'bl', t0: 22, t1: 38, rate: 4, kind: 'shot' },
+    { from: 'bw', to: 'ac', t0: 42, t1: 84, rate: 6, kind: 'shot' },
+    { from: 'ac', to: 'bw', t0: 42, t1: 80, rate: 4, kind: 'shot' },
+    { from: 'bl', to: 'ar', t0: 38, t1: 84, rate: 6, kind: 'shot' },
+    { from: 'ar', to: 'bl', t0: 38, t1: 78, rate: 4, kind: 'shot' },
+    { from: 'av', to: 'bw', t0: 74, t1: 86, rate: 3, kind: 'shot' },
+    { from: 'bw', to: 'av', t0: 74, t1: 86, rate: 3, kind: 'shot' },
+  ],
+  phases: [
+    { t: 0, body: 'This is the Battle of Trafalgar off the coast of Spain on 21 October 1805, where Nelson leads 27 British warships against a larger French and Spanish fleet under Villeneuve. The allies straggle into a ragged line miles long while Nelson forms 2 columns and steers straight at it.',
+      cite: '— Nelson’s memorandum, 9 October 1805' },
+    { t: 14, body: 'The wind is so light that the British columns crawl toward the enemy at walking pace, taking fire they cannot yet answer for the better part of an hour. Then Nelson’s flagship Victory spells out in flags the signal every sailor will remember, England expects that every man will do his duty.',
+      cite: '— Log of HMS Victory, 21 October 1805' },
+    { t: 30, body: 'Collingwood reaches the enemy first in Royal Sovereign, the fastest ship in the fleet, and cuts into Gravina’s rear squadron behind the Santa Ana, firing a full broadside down her stern from pistol range. One by one the ships of his column follow him through the gap.',
+      cite: '— Collingwood’s dispatch, 22 October 1805' },
+    { t: 42, body: 'Nelson’s Victory cuts the line behind Villeneuve’s flagship and fires a double loaded broadside down her whole length, wrecking her in one pass. Then she locks side by side with the Redoutable, whose marksmen up in the rigging will shoot Nelson down.',
+      cite: '— Log of HMS Victory · Beatty’s narrative' },
+    { t: 56, body: 'This is the close and formless fight Nelson wanted, where the neat line of battle means nothing and faster British gunnery means everything. It swallows Villeneuve’s centre and Gravina’s rear ship by ship, until surrender flags begin to show through the smoke.',
+      cite: '— Collingwood’s dispatch, 22 October 1805' },
+    { t: 70, body: 'Dumanoir’s 10 fresh ships in the van have sat becalmed and useless all morning. They finally turn back, trade a few distant broadsides as they pass the wreckage, and then sail away south, leaving the rest of their fleet to its fate.',
+      cite: '— Collingwood’s dispatch, 22 October 1805' },
+    { t: 84, body: 'By late afternoon the guns fall silent with 18 allied ships taken or destroyed, Villeneuve a prisoner, and not one British ship lost. Nelson lives just long enough to hear it, and Britain will not fight another great fleet battle for a century.',
+      cite: '— Collingwood’s dispatch, 22 October 1805' },
+  ],
+};
+</script>
+<script src="../engine.js?v=5591be0"></script>
+</body>
+</html>

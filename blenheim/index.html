@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sandtable — Blenheim, 1704</title>
+<meta name="description" content="Blenheim, 13 August 1704, re-enacted from above — Marlborough pins both flanks inside their villages, then walks his cavalry across the Nebel and punches through the hollow centre into the Danube.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="SANDTABLE">
+<meta property="og:title" content="Sandtable — Blenheim, 1704">
+<meta property="og:description" content="Blenheim, 13 August 1704, re-enacted from above — Marlborough pins both flanks inside their villages, then walks his cavalry across the Nebel and punches through the hollow centre into the Danube.">
+<meta property="og:url" content="https://sandtable.thrain.ai/blenheim/">
+<meta property="og:image" content="https://sandtable.thrain.ai/blenheim/og.jpg">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://sandtable.thrain.ai/blenheim/og.jpg">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
+<link rel="stylesheet" href="../style.css?v=5591be0">
+</head>
+<body>
+
+<canvas id="field" aria-label="Animated top-down re-enactment of the Battle of Blenheim"></canvas>
+
+<div class="hud" id="masthead">
+  <a class="crumb" href="../">&larr; Sandtable</a>
+  <h1 class="sr-only">Blenheim &mdash; 13 August 1704, near H&ouml;chst&auml;dt on the Danube, Bavaria</h1>
+</div>
+
+<div class="hud" id="scorestack">
+  <div id="muster">
+    <div class="mhead">Casualties</div>
+    <div class="mrow a"><i></i><span>Grand Alliance</span><b id="fallenA">0</b><em>/ 52,000</em></div>
+    <div class="mrow b"><i></i><span>France &amp; Bavaria</span><b id="fallenB">0</b><em>/ 56,000</em></div>
+  </div>
+  <div id="aftermath">
+    <div class="ahead"><span>Summary</span><button id="afttoggle" aria-label="Minimize summary">&minus;</button></div>
+    <table class="tally">
+      <tr><th></th><th>Killed &amp; wounded</th><th>Captured</th></tr>
+      <tr class="a"><td>Grand Alliance</td><td><b>~12,000</b></td><td>~200</td></tr>
+      <tr class="b"><td>France &amp; Bavaria</td><td><b>~20,000</b></td><td>~14,000</td></tr>
+    </table>
+    <div class="sources">Sources &middot; <a href="https://www.britannica.com/event/Battle-of-Blenheim-European-history" target="_blank" rel="noopener">Encyclopædia Britannica</a> &middot; <a href="https://www.nam.ac.uk/explore/battle-blenheim" target="_blank" rel="noopener">National Army Museum</a> &middot; <a href="https://www.blenheimpalace.com/explore/the-palace/the-battle-of-blenheim/" target="_blank" rel="noopener">Blenheim Palace</a></div>
+    <button id="replaybtn">&#8635; Replay</button>
+  </div>
+</div>
+
+<div class="hud" id="narration">
+  <p id="phasebody"></p>
+  <div class="cite" id="phasecite"></div>
+</div>
+
+<div class="hud" id="compass">
+  <div>N &uarr;</div>
+  <div id="scalerow">
+    <button id="zout" aria-label="Zoom out">&minus;</button>
+    <div id="kmbar">1 km</div>
+    <button id="zin" aria-label="Zoom in">+</button>
+  </div>
+</div>
+
+<div class="hud" id="console">
+  <button id="rwbtn" aria-label="Rewind">&#171;</button>
+  <button id="playbtn" aria-label="Play or pause">&#9654;</button>
+  <button id="ffbtn" aria-label="Fast forward">&#187;</button>
+  <div id="timeline" role="slider" aria-label="Battle timeline" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0">
+    <div class="rail"></div>
+    <div class="fill" id="tlfill"></div>
+  </div>
+  <div id="clock">0:00</div>
+  <button id="labelbtn" aria-label="Toggle unit labels" title="Labels (L)"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M1.5 12.5 L6 8"/><rect x="6" y="1.5" width="6.5" height="6.5"/></svg></button>
+</div>
+
+<script>
+window.BATTLE = {
+  field: { w: 1600, h: 900, kmUnits: 100 },   // ~16 km × 9 km of the Danube plain; the village line runs ~6 km N–S
+  scale: 20,                                    // 1 mote = 20 men
+  tEnd: 100,
+  hook: '10,000 Frenchmen surrendered in one village.',
+  sides: {
+    a: { name: 'GRAND ALLIANCE', total: 52000, pal: ['#256abf', '#3987e5', '#5598e7', '#86b6ef', '#0aa2a9'] },
+    b: { name: 'FRANCE & BAVARIA', total: 56000, pal: ['#a03d18', '#C14E24', '#d96a3a', '#e8875a', '#f0b06a'] },
+  },
+  /* North (top) is the wooded high ground at Lützingen; south (bottom) is the
+     Danube. The Franco-Bavarian army stands on the WEST bank of the marshy
+     Nebel facing EAST (angle 0); the Allies attack from the EAST facing WEST
+     (angle 180). Angles: 0=E, 90=S, 180=W, 270=N. The Danube is the horizontal
+     river; the Nebel is the marshy stream carved down the front by a chain of
+     shallow negative blobs — an obstacle, not a barrier, fordable in places. */
+  terrain: {
+    base: 0.07, rise: 0.10, noise: 0.09, floor: 0.02,
+    blobs: [
+      // the wooded high ground behind the French left (west of the Nebel)
+      { x: 220, y: 40, r: 300, h: 0.24, flat: 0.35 },
+      { x: 430, y: 90, r: 200, h: 0.20 },
+      { x: 120, y: 300, r: 240, h: 0.14 },
+      // the Nebel — a marshy stream down the front of the position. A CHAIN of
+      // shallow overlapping negative blobs (spacing 22 ≤ 0.7·r) merges into one
+      // continuous watercourse from the hills to the Danube — never a necklace.
+      // The chain runs PAST the top frame edge (flows in from the hills) and
+      // tapers south toward the Danube, so neither end shows a rounded cap.
+      { x: 686, y: -6, r: 34, h: -0.19, flat: 0.5 },
+      { x: 688, y: 18, r: 34, h: -0.19, flat: 0.5 },
+      { x: 689, y: 40, r: 34, h: -0.19, flat: 0.5 },
+      { x: 691, y: 62, r: 34, h: -0.19, flat: 0.5 },
+      { x: 693, y: 84, r: 34, h: -0.19, flat: 0.5 },
+      { x: 695, y: 106, r: 34, h: -0.19, flat: 0.5 },
+      { x: 697, y: 128, r: 34, h: -0.19, flat: 0.5 },
+      { x: 700, y: 150, r: 34, h: -0.19, flat: 0.5 },
+      { x: 703, y: 172, r: 34, h: -0.19, flat: 0.5 },
+      { x: 706, y: 194, r: 34, h: -0.19, flat: 0.5 },
+      { x: 708, y: 216, r: 34, h: -0.19, flat: 0.5 },
+      { x: 711, y: 238, r: 34, h: -0.19, flat: 0.5 },
+      { x: 714, y: 260, r: 34, h: -0.19, flat: 0.5 },
+      { x: 717, y: 282, r: 34, h: -0.19, flat: 0.5 },
+      { x: 720, y: 304, r: 34, h: -0.19, flat: 0.5 },
+      { x: 723, y: 326, r: 34, h: -0.19, flat: 0.5 },
+      { x: 725, y: 348, r: 34, h: -0.19, flat: 0.5 },
+      { x: 728, y: 370, r: 34, h: -0.19, flat: 0.5 },
+      { x: 731, y: 392, r: 34, h: -0.19, flat: 0.5 },
+      { x: 734, y: 414, r: 34, h: -0.19, flat: 0.5 },
+      { x: 737, y: 436, r: 34, h: -0.19, flat: 0.5 },
+      { x: 739, y: 458, r: 34, h: -0.19, flat: 0.5 },
+      { x: 742, y: 480, r: 34, h: -0.19, flat: 0.5 },
+      { x: 745, y: 502, r: 34, h: -0.19, flat: 0.5 },
+      { x: 748, y: 524, r: 34, h: -0.20, flat: 0.5 },
+      { x: 751, y: 546, r: 33, h: -0.20, flat: 0.5 },
+      { x: 751, y: 568, r: 31, h: -0.19, flat: 0.5 },
+      { x: 749, y: 589, r: 28, h: -0.18, flat: 0.5 },
+      { x: 745, y: 608, r: 25, h: -0.16, flat: 0.5 },
+    ],
+    river: { base: 852, halfW: 30 },            // the Danube, closing the field from the south
+    woods: [
+      { x: 340, y: 70, r: 80 },                 // the Fuchsberg scrub behind Lützingen
+      { x: 250, y: 110, r: 60 },
+    ],
+    names: [
+      { t: 'DANUBE', x: 980, y: 812, c: 'rgba(120,170,225,0.34)' },
+      { t: 'THE NEBEL', x: 700, y: 540, c: 'rgba(120,170,225,0.42)' },
+      { t: 'BLINDHEIM', x: 470, y: 700 },
+      { t: 'OBERGLAU', x: 600, y: 415 },
+      { t: 'LÜTZINGEN', x: 545, y: 132 },
+      { t: 'HÖCHSTÄDT →', x: 150, y: 505, align: 'left' },
+    ],
+    // the three fortified villages that anchor the Franco-Bavarian line
+    marks: [{ x: 545, y: 720 }, { x: 600, y: 455 }, { x: 545, y: 175 }],
+    title: { name: 'Blenheim', sub: '13 August 1704', x: 1440, y: 545 },
+  },
+  /* keyframes: [t, cx, cy, angDeg, w, d, bow, scatter]. T=0..100 ≈ dawn to
+     dusk, 13 Aug 1704. Strengths from the brief: ~52,000 Allied vs ~56,000
+     Franco-Bavarian, near-parity in men — but ~27 French battalions are
+     locked uselessly inside Blindheim, the point the choreography makes. */
+  units: [
+    /* ---- Franco-Bavarian army (side b), holding west, facing east ---- */
+    // Blindheim, on the Danube: Clérambault packs 27 battalions in so tight
+    // they cannot deploy; they fight hard, then are cut off and surrender.
+    { id: 'bg', side: 'b', n: 600, kind: 'inf', label: 'CLÉRAMBAULT · 27 BATTALIONS',
+      kf: [[0,540,700,0,180,120,0,10],[14,545,700,0,170,110,0,9],[30,545,700,0,155,100,0,9],
+           [58,548,700,0,150,95,0,9],[86,548,700,0,150,95,0,10],[100,548,700,0,150,95,0,12]],
+      kill: [[14,0],[30,0.08],[44,0.12],[100,0.14]],
+      melee: [[16,50,7]] },
+    // Tallard's centre cavalry, drawn back behind the Nebel — broken by the
+    // grand charge and driven back onto the Danube, where thousands drown.
+    { id: 'tcav', side: 'b', n: 500, kind: 'cav', label: 'TALLARD · FRENCH HORSE',
+      kf: [[0,600,580,0,150,110,0,12],[40,600,575,0,150,105,0,10],[60,608,575,0,150,100,0,10],
+           [72,615,580,0,155,100,0,12],[80,585,660,0,150,95,0,20],[88,560,740,0,150,90,0,26],
+           [100,520,808,0,150,85,0,28]],
+      kill: [[60,0],[72,0.12],[80,0.42],[88,0.64],[100,0.78]],
+      melee: [[70,84,10]] },
+    // the 9 battalions of the hollowed-out French centre, overrun with the horse
+    { id: 'tfoot', side: 'b', n: 250, kind: 'inf', label: 'FRENCH CENTRE · 9 BATTALIONS',
+      kf: [[0,620,505,0,130,90,0,10],[56,618,505,0,130,88,0,9],[72,622,505,0,130,88,0,12],
+           [84,610,480,0,128,85,0,18],[100,560,470,0,120,80,0,24]],
+      kill: [[56,0],[72,0.14],[84,0.38],[100,0.60]],
+      melee: [[70,86,7]] },
+    // Oberglau, the centre hinge: the Irish 'Wild Geese' shatter the Dutch,
+    // then withdraw west in order with Marsin's wing.
+    { id: 'obg', side: 'b', n: 350, kind: 'inf', label: 'THE WILD GEESE · IRISH BRIGADE',
+      kf: [[0,600,455,0,150,100,0,10],[40,600,455,0,150,100,0,9],[56,605,455,0,155,100,0,11],
+           [72,600,455,0,150,98,0,10],[86,560,450,0,145,95,0,12],[100,430,440,0,140,90,0,16]],
+      kill: [[40,0],[56,0.10],[72,0.20],[100,0.28]],
+      melee: [[42,58,7],[70,80,6]] },
+    // Marsin's cavalry on the left — held, uncrushed, and pulled away westward
+    { id: 'mcav', side: 'b', n: 400, kind: 'cav', label: 'MARSHAL MARSIN · HORSE',
+      kf: [[0,560,310,0,180,110,0,12],[30,565,310,0,180,105,0,11],[56,560,310,0,180,105,0,11],
+           [80,555,310,0,175,100,0,12],[90,470,290,0,175,95,0,14],[100,300,270,0,175,90,0,16]],
+      kill: [[30,0],[56,0.10],[80,0.16],[100,0.18]],
+      melee: [[30,56,9]] },
+    // the Bavarian foot on the high ground at Lützingen, with the 16-gun battery
+    { id: 'bfoot', side: 'b', n: 700, kind: 'inf', label: 'ELECTOR MAX EMANUEL · BAVARIAN FOOT',
+      kf: [[0,545,185,0,260,120,0,12],[30,550,190,0,260,115,0,10],[56,545,190,0,260,115,0,11],
+           [80,545,195,0,255,110,0,11],[90,470,245,0,250,105,0,14],[100,310,275,0,245,100,0,18]],
+      kill: [[30,0],[56,0.12],[80,0.22],[100,0.26]],
+      melee: [[30,80,6]] },
+
+    /* ---- Grand Alliance (side a), attacking west from the east bank ---- */
+    // Cutts' column storms Blindheim, is bloodily repulsed, then pins the village
+    { id: 'cutts', side: 'a', n: 520, kind: 'inf', label: 'LORD CUTTS · THE COLUMN',
+      kf: [[0,1130,730,180,140,110,0,14],[12,820,730,180,145,100,0,12],[20,720,730,180,145,95,0,10],
+           [30,762,730,180,145,95,0,14],[44,715,730,180,145,95,6,12],[60,735,730,180,145,95,0,12],
+           [86,730,730,180,145,95,0,12],[100,700,730,180,145,90,0,12]],
+      kill: [[16,0],[24,0.14],[30,0.24],[44,0.30],[60,0.36],[86,0.40]],
+      melee: [[18,32,7],[42,62,7]] },
+    // Marlborough's cavalry line: the crossing of the Nebel and the grand charge
+    { id: 'mhorse', side: 'a', n: 500, kind: 'cav', label: 'MARLBOROUGH · THE CAVALRY LINE',
+      kf: [[0,1180,560,180,150,120,0,16],[30,1000,560,180,155,110,0,12],[50,900,560,180,155,105,0,11],
+           [58,850,560,180,155,100,0,12],[68,660,565,180,155,95,0,12],[75,615,575,180,160,95,4,14],
+           [84,590,650,180,155,90,0,16],[100,565,700,180,150,88,0,16]],
+      kill: [[68,0],[75,0.03],[84,0.08],[100,0.11]],
+      melee: [[73,86,10]] },
+    // Holstein-Beck's Dutch attack on Oberglau, shattered by the Irish, then rallied
+    { id: 'dutch', side: 'a', n: 300, kind: 'inf', label: 'HOLSTEIN-BECK · DUTCH FOOT',
+      kf: [[0,1150,440,180,130,95,0,12],[30,930,440,180,130,90,0,12],[44,830,442,180,130,85,0,12],
+           [52,960,445,180,130,85,0,24],[68,920,445,180,130,88,0,16],[86,890,445,180,130,88,0,12],
+           [100,850,445,180,130,85,0,12]],
+      kill: [[30,0],[44,0.06],[52,0.20],[68,0.23],[100,0.25]],
+      melee: [[44,54,7]] },
+    // Orkney's British foot follow the horse across the Nebel into the centre
+    { id: 'orkney', side: 'a', n: 280, kind: 'inf', label: 'ORKNEY · BRITISH FOOT',
+      kf: [[0,1240,500,180,120,90,0,12],[40,1010,500,180,120,88,0,11],[58,880,500,180,120,85,0,12],
+           [70,660,500,180,120,82,0,12],[86,630,490,180,120,82,0,12],[100,600,470,180,120,80,0,14]],
+      kill: [[40,0],[58,0.05],[86,0.11],[100,0.14]],
+      melee: [[72,90,6]] },
+    // Prince Eugene's Imperial horse pin the enemy left across the marsh
+    { id: 'eucav', side: 'a', n: 400, kind: 'cav', label: 'PRINCE EUGENE · IMPERIAL HORSE',
+      kf: [[0,1250,320,180,170,120,0,14],[20,1050,320,180,170,110,0,12],[30,900,320,180,170,105,0,12],
+           [40,1000,320,180,170,105,0,20],[50,890,320,180,170,105,0,14],[62,980,320,180,170,105,0,18],
+           [80,900,320,180,170,105,0,14],[100,870,320,180,170,100,0,14]],
+      kill: [[20,0],[30,0.06],[40,0.11],[50,0.13],[62,0.17],[100,0.19]],
+      melee: [[30,40,9],[50,62,9]] },
+    // Anhalt-Dessau's Prussians assault Lützingen twice, and hold the pin
+    { id: 'prus', side: 'a', n: 400, kind: 'inf', label: 'ANHALT-DESSAU · PRUSSIANS',
+      kf: [[0,1180,185,180,200,100,0,12],[26,950,185,180,200,95,0,11],[36,830,190,180,200,90,0,12],
+           [46,960,190,180,200,92,0,18],[58,850,190,180,200,90,0,12],[70,950,190,180,200,92,0,16],
+           [100,900,188,180,195,90,0,12]],
+      kill: [[26,0],[36,0.08],[46,0.14],[58,0.18],[70,0.23],[100,0.26]],
+      melee: [[36,70,6]] },
+    // the Hessian and Danish reserve, coming up behind Eugene's wing
+    { id: 'res', side: 'a', n: 200, kind: 'inf', label: 'HESSE & DANISH · RESERVE',
+      kf: [[0,1380,390,180,110,85,0,12],[40,1150,390,180,110,82,0,11],[70,1000,395,180,110,80,0,12],
+           [100,900,400,180,110,80,0,12]],
+      kill: [[40,0],[70,0.06],[100,0.12]],
+      melee: [[70,90,5]] },
+  ],
+  /* the artillery: field guns and the Bavarian battery. 'shot' is flat and
+     fast — one tracer stands for many rounds. Musketry inside the villages is
+     the melee churn, not a volley (there is no musket weapon). */
+  volleys: [
+    { from: 'bg', to: 'cutts', t0: 20, t1: 44, rate: 5, kind: 'shot' },     // Blindheim's guns rake Cutts' column
+    { from: 'bfoot', to: 'prus', t0: 26, t1: 70, rate: 6, kind: 'shot' },   // the 16-gun Bavarian battery on the Prussian assault
+    { from: 'obg', to: 'dutch', t0: 44, t1: 56, rate: 6, kind: 'shot' },    // Oberglau's guns and the Irish volley
+    { from: 'orkney', to: 'tcav', t0: 70, t1: 82, rate: 6, kind: 'shot' },  // Allied guns brought up to pound Tallard before the charge
+  ],
+  phases: [
+    { t: 0, body: 'This is the Battle of Blenheim in Bavaria on 13 August 1704, where Marlborough and Prince Eugene have marched 400 kilometres to catch a larger French and Bavarian army under Tallard. He wakes to find the Allied army deploying across the marshy stream in front of his line.',
+      cite: '— Falkner, Blenheim 1704' },
+    { t: 12, body: 'Lord Cutts throws his column at the fortified village of Blindheim by the river, and his redcoats are shot down in heaps at the barricades. But the panicking French commander keeps feeding in reserves, until Clérambault has 27 battalions jammed inside, too crowded even to fire.',
+      cite: '— Mérode-Westerloo, Mémoires · Falkner' },
+    { t: 26, body: 'On the far wing Prince Eugene sends his Imperial horse and the Prussians against the wooded hills, where Marsin and the Elector of Bavaria hold the high ground. Thrown back twice, Eugene takes almost no ground, but he pins the whole enemy left away from the centre.',
+      cite: '— Falkner · Spencer, Blenheim' },
+    { t: 42, body: 'In the middle the Irish exiles called the Wild Geese, holding the village of Oberglau, shatter Holstein-Beck’s Dutch attack and threaten to split the Allied army in 2. Marlborough rides across in person, brings up guns and fresh squadrons, and steadies the line before the gap can open.',
+      cite: '— Parker, Memoirs · Falkner' },
+    { t: 56, body: 'With both villages turned into traps for their own defenders, Marlborough does the thing Tallard never expected. He walks his whole mass of horsemen and supporting foot down to the stream, crosses it on planks, and reforms in good order on ground the hollowed out French centre can no longer defend.',
+      cite: '— Chandler, Marlborough as Military Commander' },
+    { t: 72, body: 'Late in the afternoon Marlborough launches his massed squadrons straight at Tallard’s outnumbered horsemen, and the French break under the shock. They are driven back onto the Danube, where thousands are cut down or drown trying to swim the river.',
+      cite: '— Parker · Chandler' },
+    { t: 84, body: 'The enemy army is now cut in 2, and Tallard himself is taken prisoner in the wreck of his centre. Marsin and the Elector, still unbroken on the left, pull their wing away westward in fair order rather than share the ruin.',
+      cite: '— Mérode-Westerloo · Falkner' },
+    { t: 92, body: 'In the village by the river Clérambault’s battalions are surrounded and leaderless, their commander drowned in flight, and after dark some 10,000 of them lay down their arms. France has lost Tallard and a whole field army, and Vienna is saved.',
+      cite: '— Parker · Encyclopædia Britannica' },
+  ],
+};
+</script>
+<script src="../engine.js?v=5591be0"></script>
+</body>
+</html>

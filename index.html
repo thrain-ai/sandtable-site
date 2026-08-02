@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sandtable — living battles, watched from above</title>
+<meta name="description" content="Living re-enactments of history's great battles: thousands of murmuration motes on a topographic sand table, choreographed from the primary sources.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="SANDTABLE">
+<meta property="og:title" content="Sandtable — living battles, watched from above">
+<meta property="og:description" content="Living re-enactments of history's great battles: thousands of murmuration motes on a topographic sand table, choreographed from the primary sources.">
+<meta property="og:url" content="https://sandtable.thrain.ai/">
+<meta property="og:image" content="https://sandtable.thrain.ai/cannae/og.jpg">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://sandtable.thrain.ai/cannae/og.jpg">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
+<style>
+  :root {
+    --ink: #0d0d0d;
+    --bone: #d8d3c8;
+    --bone-dim: #8f8a80;
+    --bone-faint: #5a564f;
+    --blue: #3987e5;
+    --blue-hi: #86b6ef;
+    --rust: #C14E24;
+    --rust-hi: #e8875a;
+    --hair: rgba(216, 211, 200, 0.14);
+    --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+    --mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { min-height: 100%; }
+  body { background: var(--ink); color: var(--bone); font-family: var(--serif); }
+  #sky { position: fixed; inset: 0; z-index: 0; }
+
+  /* everything sits in one flow column — the name can never be covered */
+  main {
+    position: relative; z-index: 1;
+    min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+    gap: clamp(26px, 5vh, 54px);
+    padding: clamp(40px, 9vh, 96px) 5vw clamp(56px, 10vh, 104px);
+  }
+  #nameplate {
+    font-family: var(--serif); font-weight: 400;
+    font-size: clamp(30px, 4.6vw, 60px);
+    letter-spacing: 0.3em; margin-right: -0.3em;
+    color: rgba(216, 211, 200, 0.62);
+    white-space: nowrap; text-align: center;
+  }
+
+  /* the catalog: one container holding search + the shelf */
+  .catalog {
+    width: min(760px, 100%);
+    border: 1px solid var(--hair);
+    background: rgba(13, 13, 13, 0.72);
+    backdrop-filter: blur(2px);
+  }
+  .cathead {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--hair);
+  }
+  .cathead .label {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.28em;
+    color: var(--bone-faint); text-transform: uppercase; white-space: nowrap;
+  }
+  #search {
+    flex: 0 1 240px;
+    background: none; border: none;
+    border-bottom: 1px solid var(--hair);
+    color: var(--bone); font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.08em; padding: 4px 2px 5px;
+    outline: none;
+  }
+  #search::placeholder { color: var(--bone-faint); letter-spacing: 0.14em; }
+  #search:focus { border-bottom-color: var(--rust-hi); }
+
+  .shelf { display: flex; flex-direction: column; }
+  .battle {
+    display: grid;
+    grid-template-columns: 84px 1fr auto;
+    gap: 16px; align-items: center;
+    text-decoration: none; color: inherit;
+    border-left: 2px solid var(--rust);
+    border-bottom: 1px solid var(--hair);
+    padding: 15px 16px;
+    transition: background 0.15s, border-left-color 0.15s;
+  }
+  .battle:last-child { border-bottom: none; }
+  a.battle:hover { background: rgba(216, 211, 200, 0.045); border-left-color: var(--rust-hi); }
+  .battle .era {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.13em;
+    color: var(--rust-hi); text-transform: uppercase; line-height: 1.5;
+  }
+  .battle h2 { font-size: clamp(19px, 2.4vw, 25px); font-weight: 400; letter-spacing: 0.05em; }
+  .battle .facts {
+    display: block;
+    font-family: var(--mono); font-size: 9.5px; color: var(--bone-dim);
+    letter-spacing: 0.06em; margin-top: 3px; line-height: 1.5;
+  }
+  .battle .go {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em;
+    color: var(--blue-hi); text-transform: uppercase; white-space: nowrap;
+  }
+  .battle.soon { border-left-color: var(--bone-faint); opacity: 0.5; }
+  .battle.soon .era, .battle.soon .go { color: var(--bone-faint); }
+  .battle.hide { display: none; }
+  #noresult {
+    display: none;
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em;
+    color: var(--bone-faint); text-transform: uppercase;
+    padding: 22px 16px; text-align: center;
+  }
+  #noresult.show { display: block; }
+
+  #cartouche {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.26em;
+    color: rgba(216, 211, 200, 0.38); text-transform: uppercase;
+    text-decoration: none; margin-top: auto; padding-top: 20px;
+  }
+  #cartouche:hover { color: var(--rust-hi); }
+
+  @media (max-width: 620px) {
+    .battle { grid-template-columns: 1fr; gap: 5px; }
+    .battle .go { justify-self: start; }
+    .cathead { flex-direction: column; align-items: stretch; gap: 9px; }
+    #search { flex: 1 1 auto; }
+  }
+  @media (prefers-reduced-motion: reduce) { #sky { display: none; } }
+</style>
+</head>
+<body>
+
+<canvas id="sky" aria-hidden="true"></canvas>
+
+<main>
+  <h1 id="nameplate">SANDTABLE</h1>
+
+  <div class="catalog">
+    <div class="cathead">
+      <span class="label">Battles &middot; <span id="count">12</span></span>
+      <input id="search" type="search" placeholder="Search era, place, army" aria-label="Search battles" autocomplete="off">
+    </div>
+    <nav class="shelf" aria-label="Battles">
+      <a class="battle" href="cannae/" data-tags="antiquity ancient rome carthage hannibal apulia italy 216 bc land infantry cavalry envelopment">
+        <span class="era">N&ordm;1 &middot; Antiquity</span>
+        <span>
+          <h2>Cannae</h2>
+          <span class="facts">2 AUGUST 216 BC &middot; APULIA &middot; ROME vs CARTHAGE</span>
+        </span>
+        <span class="go">Watch &rarr;</span>
+      </a>
+      <a class="battle" href="trafalgar/" data-tags="age of sail napoleonic britain france spain nelson villeneuve 1805 sea naval ships atlantic">
+        <span class="era">N&ordm;2 &middot; Age of Sail</span>
+        <span>
+          <h2>Trafalgar</h2>
+          <span class="facts">21 OCTOBER 1805 &middot; OFF CAPE TRAFALGAR &middot; BRITAIN vs FRANCE &amp; SPAIN</span>
+        </span>
+        <span class="go">Watch &rarr;</span>
+      </a>
+      <a class="battle" href="agincourt/" data-tags="medieval hundred years war england france henry v artois 1415 land archers longbow mud">
+        <span class="era">N&ordm;3 &middot; Medieval</span>
+        <span>
+          <h2>Agincourt</h2>
+          <span class="facts">25 OCTOBER 1415 &middot; ARTOIS &middot; ENGLAND vs FRANCE</span>
+        </span>
+        <span class="go">Watch &rarr;</span>
+      </a>
+      <a class="battle" href="midway/" data-tags="pacific war world war ii wwii 1942 united states japan nagumo spruance carriers aircraft sea air">
+        <span class="era">N&ordm;4 &middot; Pacific War</span>
+        <span>
+          <h2>Midway</h2>
+          <span class="facts">4 JUNE 1942 &middot; CENTRAL PACIFIC &middot; UNITED STATES vs JAPAN</span>
+        </span>
+        <span class="go">Watch &rarr;</span>
+      </a>
+      <a class="battle" href="kursk/" data-tags="kursk prokhorovka eastern front world war ii wwii 1943 soviet union germany tanks armour armor panzer citadel rotmistrov hausser land">
+        <span class="era">N&ordm;5 &middot; Eastern Front</span>
+        <span>
+          <h2>Prokhorovka</h2>
+          <span class="facts">12 JULY 1943 &middot; KURSK SALIENT &middot; SOVIET UNION vs GERMANY</span>
+        </span>
+        <span class="go">Watch &rarr;</span>
+      </a>
+      <a class="battle" href="73easting/" data-tags="gulf war desert storm iraq 1991 tanks armor abrams bradley republican guard tawakalna mcmaster land simulation simnet">
+        <span class="era">N&ordm;6 &middot; Gulf War</span>
+        <span>
+          <h2>73 Easting</h2>
+          <span class="facts">26 FEBRUARY 1991 &middot; IRAQI DESERT &middot; UNITED STATES vs IRAQ</span>
+        </span>
+        <span class="go">Watch &rarr;</span>
+      </a>
+      <a class="battle" href="midnighthammer/" data-tags="modern 2025 iran united states b-2 stealth bomber nuclear fordow natanz isfahan tomahawk submarine air strike midnight hammer">
+        <span class="era">N&ordm;7 &middot; Modern</span>
+        <span>
+          <h2>Midnight Hammer</h2>
+          <span class="facts">21&ndash;22 JUNE 2025 &middot; FORDOW, NATANZ &amp; ISFAHAN &middot; UNITED STATES vs IRAN</span>
+        </span>
+        <span class="go">Watch &rarr;</span>
+      </a>
+      <a class="battle" href="gaugamela/" data-tags="antiquity ancient greece macedon macedonia persia achaemenid alexander the great darius iii bessus mazaeus parmenion 331 bc arbela gaugamela iraq mesopotamia land infantry cavalry phalanx companion oblique wedge scythed chariots">
+        <span class="era">N&ordm;8 &middot; Antiquity</span>
+        <span>
+          <h2>Gaugamela</h2>
+          <span class="facts">1 OCTOBER 331 BC &middot; NEAR ARBELA &middot; MACEDON vs PERSIA</span>
+        </span>
+        <span class="go">Watch &rarr;</span>
+      </a>
+      <a class="battle" href="ons5/" data-tags="battle of the atlantic convoy ons 5 u-boat wolfpack submarine 1943 wwii world war ii north atlantic black pit escort corvette destroyer donitz gretton sherwood greyhound sea ships torpedo radar">
+        <span class="era">N&ordm;9 &middot; Battle of the Atlantic</span>
+        <span>
+          <h2>Convoy ONS 5</h2>
+          <span class="facts">4&ndash;6 MAY 1943 &middot; THE BLACK PIT &middot; ROYAL NAVY ESCORT vs U-BOAT WOLFPACKS</span>
+        </span>
+        <span class="go">Watch &rarr;</span>
+      </a>
+      <a class="battle" href="hastings/" data-tags="medieval norman conquest england normandy 1066 harold godwinson william the conqueror duke senlac hastings sussex shield wall housecarls fyrd bretons cavalry archers feigned flight bayeux tapestry land infantry">
+        <span class="era">N&ordm;10 &middot; Medieval</span>
+        <span>
+          <h2>Hastings</h2>
+          <span class="facts">14 OCTOBER 1066 &middot; SENLAC RIDGE, SUSSEX &middot; ENGLISH SHIELD WALL vs NORMANS</span>
+        </span>
+        <span class="go">Watch &rarr;</span>
+      </a>
+      <a class="battle" href="lepanto/" data-tags="early modern renaissance ottoman empire holy league spain venice papacy don juan de austria ali pasha uluc ali barbarigo doria santa cruz 1571 gulf of patras greece galleys galleasses sea naval oars boarding mediterranean cyprus">
+        <span class="era">N&ordm;11 &middot; Early modern</span>
+        <span>
+          <h2>Lepanto</h2>
+          <span class="facts">7 OCTOBER 1571 &middot; GULF OF PATRAS, GREECE &middot; HOLY LEAGUE vs OTTOMAN EMPIRE</span>
+        </span>
+        <span class="go">Watch &rarr;</span>
+      </a>
+      <a class="battle" href="blenheim/" data-tags="early modern war of the spanish succession 1704 marlborough prince eugene tallard marsin elector bavaria danube nebel blindheim oberglau lutzingen hochstadt bavaria germany land infantry cavalry artillery pinning breakthrough">
+        <span class="era">N&ordm;12 &middot; Early modern</span>
+        <span>
+          <h2>Blenheim</h2>
+          <span class="facts">13 AUGUST 1704 &middot; NEAR H&Ouml;CHST&Auml;DT, BAVARIA &middot; GRAND ALLIANCE vs FRANCE &amp; BAVARIA</span>
+        </span>
+        <span class="go">Watch &rarr;</span>
+      </a>
+      <div class="battle soon" data-tags="soon upcoming next d-day normandy">
+        <span class="era" id="soonno">N&ordm;13</span>
+        <span>
+          <h2>In preparation</h2>
+          <span class="facts">LAND &middot; SEA &middot; AIR &mdash; ANY ENGAGEMENT, ANY ERA</span>
+        </span>
+        <span class="go">Soon</span>
+      </div>
+      <div id="noresult">No battle on the table by that name</div>
+    </nav>
+  </div>
+
+  <a id="cartouche" href="https://thrain.ai">A Thrain Instrument</a>
+</main>
+
+<script src="splash.js?v=5591be0"></script>
+</body>
+</html>
